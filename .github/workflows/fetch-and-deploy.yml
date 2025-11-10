@@ -57,7 +57,7 @@ jobs:
 
   deploy:
     # Déployer uniquement depuis les branches claude/** ou lors d'exécutions planifiées/manuelles
-    if: github.ref != 'refs/heads/main'
+    if: github.ref != 'refs/heads/main' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
