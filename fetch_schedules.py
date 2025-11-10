@@ -45,7 +45,7 @@ def fetch_firebase_data(id_token=None):
     print("📊 Récupération des données depuis Firebase Realtime Database...")
 
     # URL de la base de données avec .json pour l'API REST
-    url = f"{FIREBASE_CONFIG['database_url']}.json"
+    url = f"{FIREBASE_CONFIG['database_url']}/.json"
 
     # Ajouter le token d'authentification si disponible
     params = {}
