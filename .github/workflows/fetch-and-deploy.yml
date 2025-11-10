@@ -51,7 +51,7 @@ jobs:
           ls -lah *.html *.json 2>/dev/null || echo "Aucun fichier trouvé"
 
       - name: 📄 Upload artifact pour GitHub Pages
-        uses: actions/upload-pages-artifact@v2
+        uses: actions/upload-pages-artifact@v3
         with:
           path: '.'
 
@@ -66,4 +66,4 @@ jobs:
     steps:
       - name: 🚀 Déploiement sur GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v2
+        uses: actions/deploy-pages@v4
