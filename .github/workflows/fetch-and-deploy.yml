@@ -8,12 +8,6 @@ on:
   # Permettre l'exécution manuelle
   workflow_dispatch:
 
-  # Exécuter lors d'un push sur la branche principale
-  push:
-    branches:
-      - main
-      - claude/**
-
 # Permissions nécessaires pour déployer sur GitHub Pages
 permissions:
   contents: read
@@ -56,8 +50,6 @@ jobs:
           path: '.'
 
   deploy:
-    # Déployer uniquement depuis les branches claude/** ou lors d'exécutions planifiées/manuelles
-    if: github.ref != 'refs/heads/main' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
