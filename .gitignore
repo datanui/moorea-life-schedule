@@ -1,0 +1,10 @@
+node_modules/
+.env
+*.log
+.DS_Store
+firebase-debug.log
+firestore-debug.log
+
+# Fichiers générés localement (pas par CI)
+# index.html et data*.json seront générés par GitHub Actions
+data*.json

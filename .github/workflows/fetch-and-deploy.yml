@@ -1,0 +1,69 @@
+name: Fetch Ferry Schedules and Deploy
+
+on:
+  # Exécuter tous les jours à 6h du matin (heure UTC)
+  schedule:
+    - cron: '0 6 * * *'
+
+  # Permettre l'exécution manuelle
+  workflow_dispatch:
+
+  # Exécuter lors d'un push sur la branche principale
+  push:
+    branches:
+      - main
+      - claude/**
+
+# Permissions nécessaires pour déployer sur GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Empêcher les exécutions concurrentes
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  fetch-and-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout du code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: 📦 Installation des dépendances
+        run: npm install
+
+      - name: 🚢 Récupération des horaires depuis Firebase
+        run: npm run fetch
+
+      - name: 📋 Affichage des fichiers générés
+        run: |
+          echo "Fichiers générés:"
+          ls -lah *.html *.json 2>/dev/null || echo "Aucun fichier trouvé"
+
+      - name: 📄 Upload artifact pour GitHub Pages
+        uses: actions/upload-pages-artifact@v2
+        with:
+          path: '.'
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    runs-on: ubuntu-latest
+    needs: fetch-and-build
+
+    steps:
+      - name: 🚀 Déploiement sur GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v2
