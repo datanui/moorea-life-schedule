@@ -3,15 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Horaires Ferries Tahiti-Moorea</title>
+    <title>Horaires Ferries Tahiti-Moorea - Erreur</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             max-width: 1200px;
             margin: 0 auto;
             padding: 20px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: #333;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
         }
         .container {
             background: white;
@@ -20,44 +19,15 @@
             box-shadow: 0 10px 40px rgba(0,0,0,0.2);
         }
         h1 {
-            color: #667eea;
+            color: #f5576c;
             text-align: center;
-            margin-bottom: 10px;
         }
-        .subtitle {
-            text-align: center;
-            color: #666;
-            margin-bottom: 30px;
-        }
-        .info {
-            background: #f0f4ff;
-            border-left: 4px solid #667eea;
+        .error {
+            background: #fff5f5;
+            border-left: 4px solid #f5576c;
             padding: 15px;
             margin: 20px 0;
             border-radius: 5px;
-        }
-        .status {
-            background: #fff4e6;
-            border-left: 4px solid #ff9800;
-            padding: 15px;
-            margin: 20px 0;
-            border-radius: 5px;
-        }
-        .features {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin: 30px 0;
-        }
-        .feature {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 8px;
-            text-align: center;
-        }
-        .feature-icon {
-            font-size: 48px;
-            margin-bottom: 10px;
         }
         .footer {
             text-align: center;
@@ -67,63 +37,31 @@
             color: #666;
             font-size: 14px;
         }
-        a {
-            color: #667eea;
-            text-decoration: none;
-        }
-        a:hover {
-            text-decoration: underline;
-        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🚢 Horaires Ferries Tahiti-Moorea</h1>
-        <div class="subtitle">Récupération automatique des horaires depuis Firebase</div>
+        <h1>❌ Erreur de récupération des données</h1>
 
-        <div class="status">
-            <strong>⏳ Statut:</strong><br>
-            Cette page sera automatiquement mise à jour avec les horaires de la semaine en cours.<br>
-            La première récupération des données aura lieu lors de la prochaine exécution de GitHub Actions.
+        <div class="error">
+            <strong>Message d'erreur:</strong><br>
+            Aucune donnée récupérée depuis Firebase
         </div>
 
-        <div class="info">
+        <div class="error">
             <strong>ℹ️ Informations:</strong><br>
-            Ce projet récupère les horaires des ferries Tahiti-Moorea depuis la base de données Firebase de terevau.pf.<br>
-            Les données sont mises à jour automatiquement tous les jours à 6h00 UTC.
-        </div>
-
-        <div class="features">
-            <div class="feature">
-                <div class="feature-icon">🔄</div>
-                <h3>Mise à jour automatique</h3>
-                <p>Exécution quotidienne via GitHub Actions</p>
-            </div>
-            <div class="feature">
-                <div class="feature-icon">📊</div>
-                <h3>Données en temps réel</h3>
-                <p>Récupération depuis Firebase Realtime Database</p>
-            </div>
-            <div class="feature">
-                <div class="feature-icon">🚀</div>
-                <h3>Déploiement automatique</h3>
-                <p>Publié sur GitHub Pages à chaque mise à jour</p>
-            </div>
-        </div>
-
-        <div class="info">
-            <strong>🔧 Configuration Firebase:</strong><br>
+            La tentative de récupération des horaires depuis Firebase a échoué.<br>
+            Cela peut être dû à:<br>
             <ul>
-                <li>Project ID: <code>terevau-9651d</code></li>
-                <li>Database: <code>https://terevau-9651d.firebaseio.com</code></li>
-                <li>Méthode: Authentification anonyme + lecture publique</li>
+                <li>Les données ne sont pas accessibles en lecture publique</li>
+                <li>L'authentification anonyme n'est pas activée</li>
+                <li>Les règles de sécurité Firebase bloquent l'accès</li>
             </ul>
         </div>
 
         <div class="footer">
-            <p>🔄 Cette page sera remplacée automatiquement lors de la prochaine exécution</p>
-            <p>📦 <a href="https://github.com/datanui/moorea-life-schedule" target="_blank">Voir le code source sur GitHub</a></p>
-            <p>Projet: Moorea Life Schedule</p>
+            <p>Date de la tentative: 10/11/2025 17:54:18</p>
+            <p>🔄 Page générée automatiquement via GitHub Actions</p>
         </div>
     </div>
 </body>

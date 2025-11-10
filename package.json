@@ -1,0 +1,13 @@
+{
+  "name": "moorea-life-schedule",
+  "version": "1.0.0",
+  "description": "Fetch ferry schedules from Firebase for Tahiti-Moorea route",
+  "main": "fetch-schedules.js",
+  "type": "module",
+  "scripts": {
+    "start": "node fetch-schedules.js"
+  },
+  "dependencies": {
+    "firebase": "^10.7.1"
+  }
+}
