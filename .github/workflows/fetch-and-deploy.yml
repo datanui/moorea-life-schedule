@@ -33,16 +33,17 @@ jobs:
       - name: 📥 Checkout du code
         uses: actions/checkout@v4
 
-      - name: 🐍 Setup Python
-        uses: actions/setup-python@v5
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          python-version: '3.11'
+          node-version: '20'
+          cache: 'npm'
 
       - name: 📦 Installation des dépendances
-        run: pip install -r requirements.txt
+        run: npm install
 
       - name: 🚢 Récupération des horaires depuis Firebase
-        run: python fetch_schedules.py
+        run: node fetch-schedules.js
 
       - name: 📋 Affichage des fichiers générés
         run: |
