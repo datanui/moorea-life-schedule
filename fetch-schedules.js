@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously } from 'firebase/auth';
-import { getDatabase, ref, get } from 'firebase/database';
+import { getDatabase, ref, get, goOffline } from 'firebase/database';
 import fs from 'fs';
 
 // Configuration Firebase de terevau.pf
@@ -88,9 +88,17 @@ async function fetchSchedules() {
   } catch (error) {
     console.error("❌ Erreur générale:", error);
     generateErrorHTML(error.message);
-  }
+  } finally {
+    // Fermer la connexion Firebase pour permettre au processus de se terminer
+    console.log("🔌 Fermeture de la connexion Firebase...");
+    goOffline(database);
 
-  process.exit(0);
+    // Petit délai pour s'assurer que tout est terminé
+    setTimeout(() => {
+      console.log("✅ Processus terminé");
+      process.exit(0);
+    }, 500);
+  }
 }
 
 function generateHTML(data) {
