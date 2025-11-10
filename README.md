@@ -21,17 +21,17 @@ Le projet utilise la clé API publique de terevau.pf pour accéder à la base de
 ## 🚀 Installation et utilisation locale
 
 ### Prérequis
-- Node.js 20 ou supérieur
-- npm
+- Python 3.11 ou supérieur
+- pip
 
 ### Installation
 ```bash
-npm install
+pip install -r requirements.txt
 ```
 
 ### Récupération des horaires
 ```bash
-npm run fetch
+python fetch_schedules.py
 ```
 
 Cela générera :
@@ -60,8 +60,8 @@ moorea-life-schedule/
 ├── .github/
 │   └── workflows/
 │       └── fetch-and-deploy.yml  # GitHub Action pour fetch + deploy
-├── fetch-schedules.js            # Script de récupération des horaires
-├── package.json                  # Dépendances du projet
+├── fetch_schedules.py            # Script Python de récupération des horaires
+├── requirements.txt              # Dépendances Python
 ├── index.html                    # Page générée (après exécution)
 ├── data.json                     # Données brutes (après exécution)
 └── README.md                     # Ce fichier
@@ -69,11 +69,18 @@ moorea-life-schedule/
 
 ## 🔍 Comment ça marche
 
-1. **Connexion Firebase** : Le script se connecte à Firebase avec la clé API publique
-2. **Authentification** : Tentative d'authentification anonyme
-3. **Récupération** : Lecture des données depuis Realtime Database
+1. **Connexion Firebase** : Le script Python se connecte à Firebase avec la clé API publique
+2. **Authentification** : Authentification anonyme via l'API REST Firebase
+3. **Récupération** : Lecture des données depuis Realtime Database via requêtes HTTP
 4. **Génération** : Création d'une page HTML avec les horaires
 5. **Déploiement** : GitHub Actions déploie sur GitHub Pages
+
+## 🐍 Avantages de Python
+
+- Simple et lisible
+- Pas de dépendances lourdes (juste `requests`)
+- Pas de problème de fermeture de connexion WebSocket
+- Exécution rapide
 
 ## 📝 Notes
 
