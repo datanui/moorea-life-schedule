@@ -129,6 +129,9 @@ async function fetchSchedules() {
 function generateHTML(data, currentWeek, currentYear) {
   const now = new Date();
 
+  // Parse les données et crée le tableau
+  const scheduleTable = parseScheduleData(data, currentWeek, currentYear);
+
   const html = `<!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -138,7 +141,7 @@ function generateHTML(data, currentWeek, currentYear) {
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
             padding: 20px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -167,21 +170,58 @@ function generateHTML(data, currentWeek, currentYear) {
             margin: 20px 0;
             border-radius: 5px;
         }
-        .data-section {
+        .schedule-table {
+            width: 100%;
+            border-collapse: collapse;
             margin: 20px 0;
-            padding: 15px;
-            background: #f8f9fa;
+            background: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
             border-radius: 8px;
+            overflow: hidden;
         }
-        pre {
-            background: #282c34;
-            color: #abb2bf;
+        .schedule-table thead {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .schedule-table th {
             padding: 15px;
-            border-radius: 5px;
-            overflow-x: auto;
+            text-align: left;
+            font-weight: 600;
+            font-size: 16px;
+        }
+        .schedule-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .schedule-table tbody tr:hover {
+            background: #f8f9fa;
+        }
+        .schedule-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+        .date-cell {
+            font-weight: 600;
+            color: #667eea;
+            white-space: nowrap;
+        }
+        .times-cell {
+            font-family: 'Courier New', monospace;
             font-size: 14px;
-            max-height: 600px;
-            overflow-y: auto;
+            line-height: 1.6;
+        }
+        .time-badge {
+            display: inline-block;
+            background: #f0f4ff;
+            padding: 4px 8px;
+            margin: 2px;
+            border-radius: 4px;
+            border: 1px solid #667eea;
+        }
+        .today {
+            background: #fff9e6 !important;
+        }
+        .today .date-cell {
+            color: #f5576c;
         }
         .footer {
             text-align: center;
@@ -190,6 +230,28 @@ function generateHTML(data, currentWeek, currentYear) {
             border-top: 2px solid #e0e0e0;
             color: #666;
             font-size: 14px;
+        }
+        .debug-section {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .debug-section summary {
+            cursor: pointer;
+            font-weight: 600;
+            color: #667eea;
+            padding: 10px;
+        }
+        pre {
+            background: #282c34;
+            color: #abb2bf;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
         }
     </style>
 </head>
@@ -209,11 +271,12 @@ function generateHTML(data, currentWeek, currentYear) {
             Dernière mise à jour: ${now.toLocaleString('fr-FR')}
         </div>
 
-        <div class="data-section">
-            <h2>📊 Données de la semaine ${currentWeek}</h2>
-            <p>Structure des données récupérées:</p>
+        ${scheduleTable}
+
+        <details class="debug-section">
+            <summary>📊 Voir les données brutes</summary>
             <pre>${JSON.stringify(data, null, 2)}</pre>
-        </div>
+        </details>
 
         <div class="footer">
             <p>🔄 Page générée automatiquement via GitHub Actions</p>
@@ -225,6 +288,139 @@ function generateHTML(data, currentWeek, currentYear) {
 
   fs.writeFileSync('index.html', html);
   console.log("✅ Page HTML générée: index.html");
+}
+
+function parseScheduleData(data, currentWeek, currentYear) {
+  if (!data || typeof data !== 'object') {
+    return '<div class="info">❌ Aucune donnée disponible</div>';
+  }
+
+  // Récupère la date du lundi de la semaine
+  const mondayDate = getMondayOfWeek(currentWeek, currentYear);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const rows = [];
+
+  // Essaye différentes structures de données possibles
+  const entries = Object.entries(data);
+
+  // Trie les entrées par clé (qui pourrait être un jour, une date, etc.)
+  entries.sort((a, b) => {
+    const keyA = a[0];
+    const keyB = b[0];
+
+    // Si ce sont des nombres (jours de la semaine)
+    if (!isNaN(keyA) && !isNaN(keyB)) {
+      return parseInt(keyA) - parseInt(keyB);
+    }
+
+    // Si ce sont des dates
+    return keyA.localeCompare(keyB);
+  });
+
+  for (const [key, value] of entries) {
+    let dateStr = '';
+    let currentDate = null;
+
+    // Détermine la date basée sur la clé
+    if (!isNaN(key)) {
+      // Clé numérique: probablement un jour de la semaine (1=Lundi, 2=Mardi, etc.)
+      const dayOffset = parseInt(key) - 1;
+      currentDate = new Date(mondayDate);
+      currentDate.setDate(mondayDate.getDate() + dayOffset);
+      dateStr = currentDate.toLocaleDateString('fr-FR', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long'
+      });
+    } else if (key.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      // Format date ISO
+      currentDate = new Date(key);
+      dateStr = currentDate.toLocaleDateString('fr-FR', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long'
+      });
+    } else {
+      // Nom de jour ou autre
+      dateStr = key;
+    }
+
+    // Extraction des heures MOZ et PPT
+    let mozTimes = [];
+    let pptTimes = [];
+
+    if (value && typeof value === 'object') {
+      // Essaye plusieurs structures possibles
+      mozTimes = value.MOZ || value.Moorea || value.moz || value.moorea || [];
+      pptTimes = value.PPT || value.Papeete || value.ppt || value.papeete || value.Tahiti || value.tahiti || [];
+
+      // Si les données sont dans une sous-structure
+      if (value.departures) {
+        mozTimes = value.departures.MOZ || value.departures.Moorea || [];
+        pptTimes = value.departures.PPT || value.departures.Papeete || [];
+      }
+
+      // Si les données sont dans times
+      if (value.times) {
+        mozTimes = value.times.MOZ || value.times.Moorea || [];
+        pptTimes = value.times.PPT || value.times.Papeete || [];
+      }
+    }
+
+    // Formate les heures en badges
+    const mozTimesHtml = Array.isArray(mozTimes) && mozTimes.length > 0
+      ? mozTimes.map(time => `<span class="time-badge">${time}</span>`).join(' ')
+      : '<span style="color: #999;">-</span>';
+
+    const pptTimesHtml = Array.isArray(pptTimes) && pptTimes.length > 0
+      ? pptTimes.map(time => `<span class="time-badge">${time}</span>`).join(' ')
+      : '<span style="color: #999;">-</span>';
+
+    // Vérifie si c'est aujourd'hui
+    const isToday = currentDate && currentDate.getTime() === today.getTime();
+    const rowClass = isToday ? 'today' : '';
+
+    rows.push(`
+      <tr class="${rowClass}">
+        <td class="date-cell">${dateStr}</td>
+        <td class="times-cell">${mozTimesHtml}</td>
+        <td class="times-cell">${pptTimesHtml}</td>
+      </tr>
+    `);
+  }
+
+  if (rows.length === 0) {
+    return '<div class="info">❌ Aucun horaire trouvé dans les données</div>';
+  }
+
+  return `
+    <table class="schedule-table">
+      <thead>
+        <tr>
+          <th>📅 Date</th>
+          <th>🚢 Départs Moorea (MOZ)</th>
+          <th>🚢 Départs Papeete (PPT)</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+function getMondayOfWeek(week, year) {
+  const jan4 = new Date(year, 0, 4);
+  const jan4Day = jan4.getDay() || 7; // 1=Lundi, 7=Dimanche
+  const mondayJan4Week = new Date(jan4);
+  mondayJan4Week.setDate(jan4.getDate() - (jan4Day - 1));
+
+  const targetMonday = new Date(mondayJan4Week);
+  targetMonday.setDate(mondayJan4Week.getDate() + (week - 1) * 7);
+
+  return targetMonday;
 }
 
 function generateErrorHTML(errorMessage) {

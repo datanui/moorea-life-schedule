@@ -8,3 +8,5 @@ firestore-debug.log
 # Fichiers générés localement (pas par CI)
 # index.html et data*.json seront générés par GitHub Actions
 data*.json
+test-table.html
+test-table.js
