@@ -300,93 +300,110 @@ function parseScheduleData(data, currentWeek, currentYear) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
+  // Fonction pour convertir les secondes en format HH:MM
+  const secondsToTime = (seconds) => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+  };
+
+  // Organiser les données par jour
+  const scheduleByDay = {};
+
+  // Structure des données: { "MOZ": [...], "PPT": [...] }
+  // Chaque tableau contient des objets représentant des jours
+  // Chaque objet jour contient des horaires indexés par ID
+
+  // Parcourir toutes les destinations
+  for (const destination of ['MOZ', 'PPT']) {
+    if (!data[destination] || !Array.isArray(data[destination])) {
+      continue;
+    }
+
+    // Parcourir les jours
+    for (const dayData of data[destination]) {
+      if (!dayData || typeof dayData !== 'object') {
+        continue;
+      }
+
+      // Parcourir les horaires du jour
+      for (const [scheduleId, schedule] of Object.entries(dayData)) {
+        if (!schedule || typeof schedule !== 'object') {
+          continue;
+        }
+
+        const day = schedule.day;
+        if (day === undefined || day === null) {
+          continue;
+        }
+
+        // Initialiser le jour si nécessaire
+        if (!scheduleByDay[day]) {
+          scheduleByDay[day] = {
+            pptToMoz: [], // Départs de Papeete vers Moorea
+            mozToPpt: []  // Départs de Moorea vers Papeete
+          };
+        }
+
+        // Déterminer la direction et ajouter l'horaire
+        const timeStr = secondsToTime(schedule.timeBegin);
+        const scheduleInfo = {
+          time: timeStr,
+          timeBegin: schedule.timeBegin,
+          vessel: schedule.vessel || 'N/A',
+          status: schedule.status
+        };
+
+        if (schedule.origin === 'PPT' && schedule.destination === 'MOZ') {
+          scheduleByDay[day].pptToMoz.push(scheduleInfo);
+        } else if (schedule.origin === 'MOZ' && schedule.destination === 'PPT') {
+          scheduleByDay[day].mozToPpt.push(scheduleInfo);
+        }
+      }
+    }
+  }
+
+  // Trier les horaires par heure de départ pour chaque jour
+  for (const day in scheduleByDay) {
+    scheduleByDay[day].pptToMoz.sort((a, b) => a.timeBegin - b.timeBegin);
+    scheduleByDay[day].mozToPpt.sort((a, b) => a.timeBegin - b.timeBegin);
+  }
+
+  // Générer les lignes du tableau
   const rows = [];
+  const daysOfWeek = Object.keys(scheduleByDay).map(Number).sort((a, b) => a - b);
 
-  // Essaye différentes structures de données possibles
-  const entries = Object.entries(data);
+  for (const day of daysOfWeek) {
+    const currentDate = new Date(mondayDate);
+    currentDate.setDate(mondayDate.getDate() + day);
 
-  // Trie les entrées par clé (qui pourrait être un jour, une date, etc.)
-  entries.sort((a, b) => {
-    const keyA = a[0];
-    const keyB = b[0];
+    const dateStr = currentDate.toLocaleDateString('fr-FR', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long'
+    });
 
-    // Si ce sont des nombres (jours de la semaine)
-    if (!isNaN(keyA) && !isNaN(keyB)) {
-      return parseInt(keyA) - parseInt(keyB);
-    }
-
-    // Si ce sont des dates
-    return keyA.localeCompare(keyB);
-  });
-
-  for (const [key, value] of entries) {
-    let dateStr = '';
-    let currentDate = null;
-
-    // Détermine la date basée sur la clé
-    if (!isNaN(key)) {
-      // Clé numérique: probablement un jour de la semaine (1=Lundi, 2=Mardi, etc.)
-      const dayOffset = parseInt(key) - 1;
-      currentDate = new Date(mondayDate);
-      currentDate.setDate(mondayDate.getDate() + dayOffset);
-      dateStr = currentDate.toLocaleDateString('fr-FR', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long'
-      });
-    } else if (key.match(/^\d{4}-\d{2}-\d{2}$/)) {
-      // Format date ISO
-      currentDate = new Date(key);
-      dateStr = currentDate.toLocaleDateString('fr-FR', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long'
-      });
-    } else {
-      // Nom de jour ou autre
-      dateStr = key;
-    }
-
-    // Extraction des heures MOZ et PPT
-    let mozTimes = [];
-    let pptTimes = [];
-
-    if (value && typeof value === 'object') {
-      // Essaye plusieurs structures possibles
-      mozTimes = value.MOZ || value.Moorea || value.moz || value.moorea || [];
-      pptTimes = value.PPT || value.Papeete || value.ppt || value.papeete || value.Tahiti || value.tahiti || [];
-
-      // Si les données sont dans une sous-structure
-      if (value.departures) {
-        mozTimes = value.departures.MOZ || value.departures.Moorea || [];
-        pptTimes = value.departures.PPT || value.departures.Papeete || [];
-      }
-
-      // Si les données sont dans times
-      if (value.times) {
-        mozTimes = value.times.MOZ || value.times.Moorea || [];
-        pptTimes = value.times.PPT || value.times.Papeete || [];
-      }
-    }
-
-    // Formate les heures en badges
-    const mozTimesHtml = Array.isArray(mozTimes) && mozTimes.length > 0
-      ? mozTimes.map(time => `<span class="time-badge">${time}</span>`).join(' ')
+    // Départs PPT→MOZ
+    const pptToMozTimes = scheduleByDay[day].pptToMoz;
+    const pptToMozHtml = pptToMozTimes.length > 0
+      ? pptToMozTimes.map(s => `<span class="time-badge">${s.time}</span>`).join(' ')
       : '<span style="color: #999;">-</span>';
 
-    const pptTimesHtml = Array.isArray(pptTimes) && pptTimes.length > 0
-      ? pptTimes.map(time => `<span class="time-badge">${time}</span>`).join(' ')
+    // Départs MOZ→PPT
+    const mozToPptTimes = scheduleByDay[day].mozToPpt;
+    const mozToPptHtml = mozToPptTimes.length > 0
+      ? mozToPptTimes.map(s => `<span class="time-badge">${s.time}</span>`).join(' ')
       : '<span style="color: #999;">-</span>';
 
     // Vérifie si c'est aujourd'hui
-    const isToday = currentDate && currentDate.getTime() === today.getTime();
+    const isToday = currentDate.getTime() === today.getTime();
     const rowClass = isToday ? 'today' : '';
 
     rows.push(`
       <tr class="${rowClass}">
         <td class="date-cell">${dateStr}</td>
-        <td class="times-cell">${mozTimesHtml}</td>
-        <td class="times-cell">${pptTimesHtml}</td>
+        <td class="times-cell">${pptToMozHtml}</td>
+        <td class="times-cell">${mozToPptHtml}</td>
       </tr>
     `);
   }
@@ -400,8 +417,8 @@ function parseScheduleData(data, currentWeek, currentYear) {
       <thead>
         <tr>
           <th>📅 Date</th>
-          <th>🚢 Départs Moorea (MOZ)</th>
-          <th>🚢 Départs Papeete (PPT)</th>
+          <th>🚢 Départs Papeete → Moorea</th>
+          <th>🚢 Départs Moorea → Papeete</th>
         </tr>
       </thead>
       <tbody>
