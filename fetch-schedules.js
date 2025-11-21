@@ -3,22 +3,7 @@ import { getAuth, signInAnonymously } from 'firebase/auth';
 import { getDatabase, ref, get, goOffline } from 'firebase/database';
 import fs from 'fs';
 
-// Configuration Firebase de terevau.pf
-const firebaseConfig = {
-  apiKey: "AIzaSyB0wkLX44cZtk4lIDSVOQiOFwvts-Wqm3I",
-  authDomain: "terevau-9651d.firebaseapp.com",
-  databaseURL: "https://terevau-9651d.firebaseio.com",
-  projectId: "terevau-9651d",
-  storageBucket: "terevau-9651d.appspot.com",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
-};
-
-// Initialiser Firebase
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const database = getDatabase(app);
-
+// Fonction pour obtenir le numéro de la semaine
 function getWeekNumber(d) {
   d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
   d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
@@ -27,117 +12,168 @@ function getWeekNumber(d) {
   return weekNo;
 }
 
-async function fetchSchedules() {
+// Fonction pour obtenir le lundi d'une semaine
+function getMondayOfWeek(week, year) {
+  const jan4 = new Date(year, 0, 4);
+  const jan4Day = jan4.getDay() || 7;
+  const mondayJan4Week = new Date(jan4);
+  mondayJan4Week.setDate(jan4.getDate() - (jan4Day - 1));
+
+  const targetMonday = new Date(mondayJan4Week);
+  targetMonday.setDate(mondayJan4Week.getDate() + (week - 1) * 7);
+
+  return targetMonday;
+}
+
+// Fonction pour récupérer les horaires d'une compagnie
+async function fetchCompanySchedules(company, currentWeek, currentYear) {
+  console.log(`\n🚢 Traitement de ${company.name}...`);
+
   try {
-    console.log("🔐 Tentative de connexion à Firebase...");
+    // Initialiser Firebase pour cette compagnie
+    const app = initializeApp(company.firebase, company.id);
+    const auth = getAuth(app);
+    const database = getDatabase(app);
 
     // Tentative d'authentification anonyme
     try {
       const userCredential = await signInAnonymously(auth);
-      console.log("✅ Authentification anonyme réussie:", userCredential.user.uid);
+      console.log(`✅ Authentification anonyme réussie pour ${company.name}`);
     } catch (authError) {
-      console.log("⚠️  Authentification anonyme échouée, tentative de lecture directe:", authError.message);
+      console.log(`⚠️  Authentification anonyme échouée pour ${company.name}, tentative de lecture directe`);
     }
+
+    // Construire le chemin Firebase
+    const weekPath = `Calendar/${currentYear}/${currentWeek}`;
+    console.log(`🔗 Chemin Firebase: ${weekPath}`);
+
+    const weekRef = ref(database, weekPath);
+    const snapshot = await get(weekRef);
+
+    if (snapshot.exists()) {
+      const data = snapshot.val();
+      console.log(`✅ Données récupérées pour ${company.name}`);
+
+      // Sauvegarder dans data/{company-id}.json
+      const filename = `data/${company.id}.json`;
+      fs.writeFileSync(filename, JSON.stringify({
+        company: company.name,
+        companyId: company.id,
+        week: currentWeek,
+        year: currentYear,
+        data: data,
+        lastUpdate: new Date().toISOString()
+      }, null, 2));
+      console.log(`💾 Données sauvegardées: ${filename}`);
+
+      // Fermer la connexion
+      goOffline(database);
+
+      return {
+        success: true,
+        company: company,
+        data: data
+      };
+    } else {
+      console.log(`❌ Aucune donnée trouvée pour ${company.name}`);
+
+      // Fermer la connexion
+      goOffline(database);
+
+      return {
+        success: false,
+        company: company,
+        error: `Aucune donnée trouvée pour la semaine ${currentWeek}`
+      };
+    }
+  } catch (error) {
+    console.error(`❌ Erreur pour ${company.name}:`, error.message);
+    return {
+      success: false,
+      company: company,
+      error: error.message
+    };
+  }
+}
+
+// Fonction principale
+async function fetchAllSchedules() {
+  try {
+    console.log("📋 Chargement de la configuration des compagnies...");
+
+    // Charger la configuration des compagnies
+    const companiesConfig = JSON.parse(fs.readFileSync('companies.json', 'utf8'));
+    const companies = companiesConfig.companies;
+
+    console.log(`✅ ${companies.length} compagnie(s) trouvée(s)`);
 
     // Calculer la semaine et l'année actuelles
     const now = new Date();
     const currentWeek = getWeekNumber(now);
     const currentYear = now.getFullYear();
 
-    console.log(`📊 Récupération des données pour la semaine ${currentWeek} de ${currentYear}...`);
+    console.log(`📅 Semaine ${currentWeek} de ${currentYear}`);
 
-    // Construire le chemin Firebase: /Calendar/YEAR/WEEK
-    const weekPath = `Calendar/${currentYear}/${currentWeek}`;
-    console.log(`🔗 Chemin Firebase: ${weekPath}`);
-
-    const weekRef = ref(database, weekPath);
-
-    try {
-      const snapshot = await get(weekRef);
-
-      if (snapshot.exists()) {
-        const data = snapshot.val();
-        console.log("✅ Données de la semaine récupérées avec succès!");
-        console.log(`📋 Type de données: ${typeof data}`);
-
-        if (typeof data === 'object' && data !== null) {
-          console.log("📋 Clés disponibles:", Object.keys(data).slice(0, 10));
-        }
-
-        // Sauvegarder les données brutes
-        fs.writeFileSync('data.json', JSON.stringify(data, null, 2));
-        console.log("💾 Données sauvegardées dans data.json");
-
-        // Générer la page HTML
-        generateHTML(data, currentWeek, currentYear);
-
-        return data;
-      } else {
-        console.log(`❌ Aucune donnée trouvée pour la semaine ${currentWeek}`);
-
-        // Essayer d'autres chemins si le chemin principal ne fonctionne pas
-        console.log("🔍 Tentative de chemins alternatifs...");
-
-        const alternativePaths = [
-          `/Calendar/${currentYear}`,
-          `/Calendar`,
-          '/'
-        ];
-
-        for (const altPath of alternativePaths) {
-          console.log(`🔍 Test du chemin: ${altPath}`);
-          const altRef = ref(database, altPath);
-          const altSnapshot = await get(altRef);
-
-          if (altSnapshot.exists()) {
-            const altData = altSnapshot.val();
-            console.log(`✅ Données trouvées dans: ${altPath}`);
-
-            if (typeof altData === 'object') {
-              console.log(`📋 Clés: ${Object.keys(altData).slice(0, 10)}`);
-            }
-
-            const filename = `data-${altPath.replace(/\//g, '_')}.json`;
-            fs.writeFileSync(filename, JSON.stringify(altData, null, 2));
-            console.log(`💾 Sauvegardé dans ${filename}`);
-          }
-        }
-
-        generateErrorHTML(`Aucune donnée trouvée pour la semaine ${currentWeek} de ${currentYear} au chemin: ${weekPath}`);
-      }
-    } catch (dbError) {
-      console.error("❌ Erreur lors de la récupération des données:", dbError.message);
-      generateErrorHTML(dbError.message);
+    // Créer le répertoire data s'il n'existe pas
+    if (!fs.existsSync('data')) {
+      fs.mkdirSync('data');
     }
+
+    // Récupérer les horaires pour chaque compagnie
+    const results = [];
+    for (const company of companies) {
+      const result = await fetchCompanySchedules(company, currentWeek, currentYear);
+      results.push(result);
+
+      // Petit délai entre chaque requête
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+
+    // Générer la page HTML
+    generateMultiCompanyHTML(results, currentWeek, currentYear);
+
+    console.log("\n✅ Processus terminé avec succès!");
+    process.exit(0);
 
   } catch (error) {
     console.error("❌ Erreur générale:", error);
     generateErrorHTML(error.message);
-  } finally {
-    // Fermer la connexion Firebase pour permettre au processus de se terminer
-    console.log("🔌 Fermeture de la connexion Firebase...");
-    goOffline(database);
-
-    // Petit délai pour s'assurer que tout est terminé
-    setTimeout(() => {
-      console.log("✅ Processus terminé");
-      process.exit(0);
-    }, 500);
+    process.exit(1);
   }
 }
 
-function generateHTML(data, currentWeek, currentYear) {
+// Fonction pour générer le HTML multi-compagnies
+function generateMultiCompanyHTML(results, currentWeek, currentYear) {
   const now = new Date();
 
-  // Parse les données et crée le tableau
-  const scheduleTable = parseScheduleData(data, currentWeek, currentYear);
+  // Générer les sections pour chaque compagnie
+  const companySections = results.map(result => {
+    if (result.success) {
+      const scheduleTable = parseScheduleData(result.data, currentWeek, currentYear);
+      return `
+        <div class="company-section">
+          <h2 style="color: ${result.company.color};">🚢 ${result.company.name}</h2>
+          ${scheduleTable}
+        </div>
+      `;
+    } else {
+      return `
+        <div class="company-section error-section">
+          <h2 style="color: #f5576c;">⚠️ ${result.company.name}</h2>
+          <div class="error">
+            <strong>Erreur:</strong> ${result.error}
+          </div>
+        </div>
+      `;
+    }
+  }).join('\n');
 
   const html = `<!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Horaires Ferries Tahiti-Moorea</title>
+    <title>Horaires Ferries Tahiti-Moorea - Toutes Compagnies</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -163,9 +199,28 @@ function generateHTML(data, currentWeek, currentYear) {
             color: #666;
             margin-bottom: 30px;
         }
+        .company-section {
+            margin: 40px 0;
+            padding: 20px;
+            border-radius: 10px;
+            background: #f8f9fa;
+        }
+        .company-section h2 {
+            margin-top: 0;
+        }
+        .error-section {
+            background: #fff5f5;
+        }
         .info {
             background: #f0f4ff;
             border-left: 4px solid #667eea;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .error {
+            background: #fff5f5;
+            border-left: 4px solid #f5576c;
             padding: 15px;
             margin: 20px 0;
             border-radius: 5px;
@@ -231,28 +286,6 @@ function generateHTML(data, currentWeek, currentYear) {
             color: #666;
             font-size: 14px;
         }
-        .debug-section {
-            margin: 20px 0;
-            padding: 15px;
-            background: #f8f9fa;
-            border-radius: 8px;
-        }
-        .debug-section summary {
-            cursor: pointer;
-            font-weight: 600;
-            color: #667eea;
-            padding: 10px;
-        }
-        pre {
-            background: #282c34;
-            color: #abb2bf;
-            padding: 15px;
-            border-radius: 5px;
-            overflow-x: auto;
-            font-size: 12px;
-            max-height: 400px;
-            overflow-y: auto;
-        }
     </style>
 </head>
 <body>
@@ -267,16 +300,11 @@ function generateHTML(data, currentWeek, currentYear) {
 
         <div class="info">
             <strong>ℹ️ Informations:</strong><br>
-            Données récupérées depuis Firebase (Calendar/${currentYear}/${currentWeek})<br>
+            Cette page affiche les horaires de toutes les compagnies maritimes desservant la liaison Tahiti-Moorea.<br>
             Dernière mise à jour: ${now.toLocaleString('fr-FR')}
         </div>
 
-        ${scheduleTable}
-
-        <details class="debug-section">
-            <summary>📊 Voir les données brutes</summary>
-            <pre>${JSON.stringify(data, null, 2)}</pre>
-        </details>
+        ${companySections}
 
         <div class="footer">
             <p>🔄 Page générée automatiquement via GitHub Actions</p>
@@ -287,46 +315,37 @@ function generateHTML(data, currentWeek, currentYear) {
 </html>`;
 
   fs.writeFileSync('index.html', html);
-  console.log("✅ Page HTML générée: index.html");
+  console.log("✅ Page HTML multi-compagnies générée: index.html");
 }
 
+// Fonction pour parser les données d'horaires
 function parseScheduleData(data, currentWeek, currentYear) {
   if (!data || typeof data !== 'object') {
     return '<div class="info">❌ Aucune donnée disponible</div>';
   }
 
-  // Récupère la date du lundi de la semaine
   const mondayDate = getMondayOfWeek(currentWeek, currentYear);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  // Fonction pour convertir les secondes en format HH:MM
   const secondsToTime = (seconds) => {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
   };
 
-  // Organiser les données par jour
   const scheduleByDay = {};
 
-  // Structure des données: { "MOZ": [...], "PPT": [...] }
-  // Chaque tableau contient des objets représentant des jours
-  // Chaque objet jour contient des horaires indexés par ID
-
-  // Parcourir toutes les destinations
   for (const destination of ['MOZ', 'PPT']) {
     if (!data[destination] || !Array.isArray(data[destination])) {
       continue;
     }
 
-    // Parcourir les jours
     for (const dayData of data[destination]) {
       if (!dayData || typeof dayData !== 'object') {
         continue;
       }
 
-      // Parcourir les horaires du jour
       for (const [scheduleId, schedule] of Object.entries(dayData)) {
         if (!schedule || typeof schedule !== 'object') {
           continue;
@@ -337,15 +356,13 @@ function parseScheduleData(data, currentWeek, currentYear) {
           continue;
         }
 
-        // Initialiser le jour si nécessaire
         if (!scheduleByDay[day]) {
           scheduleByDay[day] = {
-            pptToMoz: [], // Départs de Papeete vers Moorea
-            mozToPpt: []  // Départs de Moorea vers Papeete
+            pptToMoz: [],
+            mozToPpt: []
           };
         }
 
-        // Déterminer la direction et ajouter l'horaire
         const timeStr = secondsToTime(schedule.timeBegin);
         const scheduleInfo = {
           time: timeStr,
@@ -363,13 +380,11 @@ function parseScheduleData(data, currentWeek, currentYear) {
     }
   }
 
-  // Trier les horaires par heure de départ pour chaque jour
   for (const day in scheduleByDay) {
     scheduleByDay[day].pptToMoz.sort((a, b) => a.timeBegin - b.timeBegin);
     scheduleByDay[day].mozToPpt.sort((a, b) => a.timeBegin - b.timeBegin);
   }
 
-  // Générer les lignes du tableau
   const rows = [];
   const daysOfWeek = Object.keys(scheduleByDay).map(Number).sort((a, b) => a - b);
 
@@ -383,19 +398,16 @@ function parseScheduleData(data, currentWeek, currentYear) {
       month: 'long'
     });
 
-    // Départs PPT→MOZ
     const pptToMozTimes = scheduleByDay[day].pptToMoz;
     const pptToMozHtml = pptToMozTimes.length > 0
       ? pptToMozTimes.map(s => `<span class="time-badge">${s.time}</span>`).join(' ')
       : '<span style="color: #999;">-</span>';
 
-    // Départs MOZ→PPT
     const mozToPptTimes = scheduleByDay[day].mozToPpt;
     const mozToPptHtml = mozToPptTimes.length > 0
       ? mozToPptTimes.map(s => `<span class="time-badge">${s.time}</span>`).join(' ')
       : '<span style="color: #999;">-</span>';
 
-    // Vérifie si c'est aujourd'hui
     const isToday = currentDate.getTime() === today.getTime();
     const rowClass = isToday ? 'today' : '';
 
@@ -428,18 +440,7 @@ function parseScheduleData(data, currentWeek, currentYear) {
   `;
 }
 
-function getMondayOfWeek(week, year) {
-  const jan4 = new Date(year, 0, 4);
-  const jan4Day = jan4.getDay() || 7; // 1=Lundi, 7=Dimanche
-  const mondayJan4Week = new Date(jan4);
-  mondayJan4Week.setDate(jan4.getDate() - (jan4Day - 1));
-
-  const targetMonday = new Date(mondayJan4Week);
-  targetMonday.setDate(mondayJan4Week.getDate() + (week - 1) * 7);
-
-  return targetMonday;
-}
-
+// Fonction pour générer une page d'erreur
 function generateErrorHTML(errorMessage) {
   const now = new Date();
 
@@ -516,5 +517,5 @@ function generateErrorHTML(errorMessage) {
   console.log("⚠️  Page HTML d'erreur générée: index.html");
 }
 
-// Lancer la récupération
-fetchSchedules();
+// Lancer le processus
+fetchAllSchedules();
