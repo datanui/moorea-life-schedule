@@ -18,11 +18,16 @@ Le projet supporte plusieurs compagnies maritimes configurées dans le fichier `
 
 ### Compagnies actuellement configurées :
 
-1. **Terevau** (configuration complète)
+1. **Terevau** (✅ configuré)
    - Project ID: `terevau-9651d`
    - Database: `https://terevau-9651d.firebaseio.com`
 
-2. **Compagnie 2, 3, 4** (à configurer)
+2. **Aremiti Express** (✅ configuré)
+   - Project ID: `aremiti-1d663`
+   - Database: `https://aremiti-1d663-default-rtdb.europe-west1.firebasedatabase.app`
+   - Navires: Aremiti 5 et Aremiti 6
+
+3. **Compagnies 3, 4** (à configurer)
    - Les configurations Firebase doivent être ajoutées dans `companies.json`
 
 ### Ajouter une nouvelle compagnie
