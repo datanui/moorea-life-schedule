@@ -96,6 +96,18 @@ async function fetchCompanySchedules(company, currentWeek, currentYear) {
   }
 }
 
+// Fonction pour vérifier si une compagnie est configurée
+function isCompanyConfigured(company) {
+  const firebase = company.firebase;
+  // Vérifier si ce sont des valeurs placeholder
+  if (firebase.apiKey.startsWith('YOUR_') ||
+      firebase.databaseURL.includes('your-project') ||
+      firebase.projectId === 'your-project') {
+    return false;
+  }
+  return true;
+}
+
 // Fonction principale
 async function fetchAllSchedules() {
   try {
@@ -103,9 +115,12 @@ async function fetchAllSchedules() {
 
     // Charger la configuration des compagnies
     const companiesConfig = JSON.parse(fs.readFileSync('companies.json', 'utf8'));
-    const companies = companiesConfig.companies;
+    const allCompanies = companiesConfig.companies;
 
-    console.log(`✅ ${companies.length} compagnie(s) trouvée(s)`);
+    // Filtrer uniquement les compagnies configurées
+    const companies = allCompanies.filter(isCompanyConfigured);
+
+    console.log(`✅ ${companies.length} compagnie(s) configurée(s) sur ${allCompanies.length} au total`);
 
     // Calculer la semaine et l'année actuelles
     const now = new Date();
