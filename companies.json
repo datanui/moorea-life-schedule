@@ -1,0 +1,60 @@
+{
+  "companies": [
+    {
+      "id": "terevau",
+      "name": "Terevau",
+      "firebase": {
+        "apiKey": "AIzaSyB0wkLX44cZtk4lIDSVOQiOFwvts-Wqm3I",
+        "authDomain": "terevau-9651d.firebaseapp.com",
+        "databaseURL": "https://terevau-9651d.firebaseio.com",
+        "projectId": "terevau-9651d",
+        "storageBucket": "terevau-9651d.appspot.com",
+        "messagingSenderId": "YOUR_MESSAGING_SENDER_ID",
+        "appId": "YOUR_APP_ID"
+      },
+      "color": "#667eea"
+    },
+    {
+      "id": "aremiti",
+      "name": "Aremiti Express",
+      "firebase": {
+        "apiKey": "AIzaSyCqFQinSeDSkOCLNyuoxQ_SG9mL-NtQLOY",
+        "authDomain": "aremiti-1d663.firebaseapp.com",
+        "databaseURL": "https://aremiti-1d663-default-rtdb.europe-west1.firebasedatabase.app",
+        "projectId": "aremiti-1d663",
+        "storageBucket": "aremiti-1d663.appspot.com",
+        "messagingSenderId": "963550256392",
+        "appId": "1:963550256392:web:aabd1503c69391d05ca0bd"
+      },
+      "color": "#f5576c"
+    },
+    {
+      "id": "company3",
+      "name": "Compagnie 3",
+      "firebase": {
+        "apiKey": "YOUR_API_KEY",
+        "authDomain": "your-project.firebaseapp.com",
+        "databaseURL": "https://your-project.firebaseio.com",
+        "projectId": "your-project",
+        "storageBucket": "your-project.appspot.com",
+        "messagingSenderId": "YOUR_MESSAGING_SENDER_ID",
+        "appId": "YOUR_APP_ID"
+      },
+      "color": "#38b2ac"
+    },
+    {
+      "id": "company4",
+      "name": "Compagnie 4",
+      "firebase": {
+        "apiKey": "YOUR_API_KEY",
+        "authDomain": "your-project.firebaseapp.com",
+        "databaseURL": "https://your-project.firebaseio.com",
+        "projectId": "your-project",
+        "storageBucket": "your-project.appspot.com",
+        "messagingSenderId": "YOUR_MESSAGING_SENDER_ID",
+        "appId": "YOUR_APP_ID"
+      },
+      "color": "#f6ad55"
+    }
+  ]
+}
