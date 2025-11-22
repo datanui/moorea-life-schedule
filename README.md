@@ -27,8 +27,12 @@ Le projet supporte plusieurs compagnies maritimes configurées dans le fichier `
    - Database: `https://aremiti-1d663-default-rtdb.europe-west1.firebasedatabase.app`
    - Navires: Aremiti 5 et Aremiti 6
 
-3. **Compagnies 3, 4** (à configurer)
-   - Les configurations Firebase doivent être ajoutées dans `companies.json`
+3. **Vaeara'i** (✅ configuré)
+   - Project ID: `terevaupiti-default-rtdb`
+   - Database: `https://terevaupiti-default-rtdb.firebaseio.com`
+
+4. **Tauati Ferry** (✅ configuré - horaires statiques)
+   - Horaires statiques depuis `horaires_tauati.json`
 
 ### Ajouter une nouvelle compagnie
 
@@ -95,12 +99,13 @@ moorea-life-schedule/
 │       └── fetch-and-deploy.yml  # GitHub Action pour fetch + deploy
 ├── data/                         # Répertoire des fichiers JSON par compagnie
 │   ├── terevau.json             # Données Terevau (généré automatiquement)
-│   ├── company2.json            # Données compagnie 2 (généré automatiquement)
-│   ├── company3.json            # Données compagnie 3 (généré automatiquement)
-│   └── company4.json            # Données compagnie 4 (généré automatiquement)
+│   ├── aremiti.json             # Données Aremiti (généré automatiquement)
+│   ├── vaearai.json             # Données Vaeara'i (généré automatiquement)
+│   └── tauati.json              # Données Tauati (généré automatiquement)
 ├── companies.json               # Configuration des compagnies maritimes
-├── fetch-schedules.js           # Script Node.js de récupération des horaires
-├── package.json                 # Dépendances Node.js
+├── horaires_tauati.json         # Horaires statiques Tauati Ferry
+├── fetch_schedules.py           # Script Python de récupération des horaires
+├── requirements.txt             # Dépendances Python
 ├── index.html                   # Page web multi-compagnies (générée)
 └── README.md                    # Ce fichier
 ```

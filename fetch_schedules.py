@@ -1,0 +1,740 @@
+#!/usr/bin/env python3
+"""
+Moorea Life Schedule - Fetch ferry schedules from Firebase
+Fetches ferry schedules for Tahiti-Moorea route from multiple companies
+"""
+
+import json
+import os
+import sys
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Tuple
+import requests
+
+
+def get_week_number(date: datetime) -> int:
+    """
+    Get ISO week number for a given date
+
+    Args:
+        date: Date to get week number for
+
+    Returns:
+        ISO week number
+    """
+    return date.isocalendar()[1]
+
+
+def get_monday_of_week(week: int, year: int) -> datetime:
+    """
+    Get the Monday of a specific ISO week
+
+    Args:
+        week: ISO week number
+        year: Year
+
+    Returns:
+        Date of the Monday of that week
+    """
+    # January 4th is always in week 1
+    jan4 = datetime(year, 1, 4)
+    # Get the Monday of week 1
+    monday_week1 = jan4 - timedelta(days=jan4.weekday())
+    # Calculate target Monday
+    target_monday = monday_week1 + timedelta(weeks=week - 1)
+    return target_monday
+
+
+def time_to_seconds(time_str: str) -> int:
+    """
+    Convert time string (HH:MM) to seconds
+
+    Args:
+        time_str: Time in format "HH:MM"
+
+    Returns:
+        Time in seconds since midnight
+    """
+    hours, minutes = map(int, time_str.split(':'))
+    return hours * 3600 + minutes * 60
+
+
+def seconds_to_time(seconds: int) -> str:
+    """
+    Convert seconds to time string (HH:MM)
+
+    Args:
+        seconds: Seconds since midnight
+
+    Returns:
+        Time string in format "HH:MM"
+    """
+    hours = seconds // 3600
+    minutes = (seconds % 3600) // 60
+    return f"{hours:02d}:{minutes:02d}"
+
+
+def load_static_schedules(company: Dict, current_week: int, current_year: int) -> Dict:
+    """
+    Load static schedules from a JSON file
+
+    Args:
+        company: Company configuration
+        current_week: Current ISO week number
+        current_year: Current year
+
+    Returns:
+        Result dictionary with success status and data
+    """
+    print(f"\n🚢 Traitement de {company['name']} (horaires statiques)...")
+
+    try:
+        with open(company['scheduleFile'], 'r', encoding='utf-8') as f:
+            schedule_data = json.load(f)
+
+        company_data = schedule_data.get(company['name'])
+
+        if not company_data:
+            print(f"❌ Aucune donnée trouvée pour {company['name']} dans {company['scheduleFile']}")
+            return {
+                'success': False,
+                'company': company,
+                'error': 'Aucune donnée trouvée dans le fichier'
+            }
+
+        # Convert static format to Firebase format
+        converted_data = {}
+        day_mapping = {
+            'Lundi': 0,
+            'Mardi': 1,
+            'Mercredi': 2,
+            'Jeudi': 3,
+            'Vendredi': 4,
+            'Samedi': 5,
+            'Dimanche': 6
+        }
+
+        # Convert Tahiti to Moorea schedules
+        if 'TahitiVersMoorea' in company_data:
+            converted_data['MOZ'] = [{} for _ in range(7)]
+
+            for day_name, times in company_data['TahitiVersMoorea'].items():
+                day_index = day_mapping.get(day_name)
+                if day_index is not None and isinstance(times, list):
+                    for idx, time_str in enumerate(times):
+                        converted_data['MOZ'][day_index][f'schedule_{idx}'] = {
+                            'day': day_index,
+                            'timeBegin': time_to_seconds(time_str),
+                            'origin': 'PPT',
+                            'destination': 'MOZ',
+                            'vessel': company['name'],
+                            'status': 'active'
+                        }
+
+        # Convert Moorea to Tahiti schedules
+        if 'MooreaVersTahiti' in company_data:
+            converted_data['PPT'] = [{} for _ in range(7)]
+
+            for day_name, times in company_data['MooreaVersTahiti'].items():
+                day_index = day_mapping.get(day_name)
+                if day_index is not None and isinstance(times, list):
+                    for idx, time_str in enumerate(times):
+                        converted_data['PPT'][day_index][f'schedule_{idx}'] = {
+                            'day': day_index,
+                            'timeBegin': time_to_seconds(time_str),
+                            'origin': 'MOZ',
+                            'destination': 'PPT',
+                            'vessel': company['name'],
+                            'status': 'active'
+                        }
+
+        print(f"✅ Données statiques chargées pour {company['name']}")
+
+        # Save to data/{company-id}.json
+        os.makedirs('data', exist_ok=True)
+        filename = f"data/{company['id']}.json"
+        with open(filename, 'w', encoding='utf-8') as f:
+            json.dump({
+                'company': company['name'],
+                'companyId': company['id'],
+                'week': current_week,
+                'year': current_year,
+                'data': converted_data,
+                'lastUpdate': datetime.now().isoformat(),
+                'source': 'static'
+            }, f, indent=2, ensure_ascii=False)
+        print(f"💾 Données sauvegardées: {filename}")
+
+        return {
+            'success': True,
+            'company': company,
+            'data': converted_data
+        }
+
+    except Exception as e:
+        print(f"❌ Erreur pour {company['name']}: {str(e)}")
+        return {
+            'success': False,
+            'company': company,
+            'error': str(e)
+        }
+
+
+def fetch_company_schedules(company: Dict, current_week: int, current_year: int) -> Dict:
+    """
+    Fetch schedules for a company from Firebase
+
+    Args:
+        company: Company configuration with Firebase settings
+        current_week: Current ISO week number
+        current_year: Current year
+
+    Returns:
+        Result dictionary with success status and data
+    """
+    print(f"\n🚢 Traitement de {company['name']}...")
+
+    try:
+        # Build Firebase REST API URL
+        database_url = company['firebase']['databaseURL']
+        week_path = f"Calendar/{current_year}/{current_week}"
+        url = f"{database_url}/{week_path}.json"
+
+        # Add auth parameter if needed
+        params = {}
+        if company['firebase'].get('apiKey'):
+            params['auth'] = company['firebase']['apiKey']
+
+        print(f"🔗 Chemin Firebase: {week_path}")
+
+        # Make request to Firebase REST API
+        response = requests.get(url, params=params, timeout=30)
+        response.raise_for_status()
+
+        data = response.json()
+
+        if data:
+            print(f"✅ Données récupérées pour {company['name']}")
+
+            # Save to data/{company-id}.json
+            os.makedirs('data', exist_ok=True)
+            filename = f"data/{company['id']}.json"
+            with open(filename, 'w', encoding='utf-8') as f:
+                json.dump({
+                    'company': company['name'],
+                    'companyId': company['id'],
+                    'week': current_week,
+                    'year': current_year,
+                    'data': data,
+                    'lastUpdate': datetime.now().isoformat()
+                }, f, indent=2, ensure_ascii=False)
+            print(f"💾 Données sauvegardées: {filename}")
+
+            return {
+                'success': True,
+                'company': company,
+                'data': data
+            }
+        else:
+            print(f"❌ Aucune donnée trouvée pour {company['name']}")
+            return {
+                'success': False,
+                'company': company,
+                'error': f"Aucune donnée trouvée pour la semaine {current_week}"
+            }
+
+    except Exception as e:
+        print(f"❌ Erreur pour {company['name']}: {str(e)}")
+        return {
+            'success': False,
+            'company': company,
+            'error': str(e)
+        }
+
+
+def is_company_configured(company: Dict) -> bool:
+    """
+    Check if a company is properly configured
+
+    Args:
+        company: Company configuration
+
+    Returns:
+        True if configured, False otherwise
+    """
+    # If static schedule company
+    if company.get('staticSchedule'):
+        return True
+
+    # Check Firebase configuration
+    firebase = company.get('firebase')
+    if not firebase:
+        return False
+
+    # Check for placeholder values
+    if (firebase.get('apiKey', '').startswith('YOUR_') or
+        'your-project' in firebase.get('databaseURL', '') or
+        firebase.get('projectId') == 'your-project'):
+        return False
+
+    return True
+
+
+def parse_schedule_data(data: Dict, current_week: int, current_year: int) -> str:
+    """
+    Parse schedule data and generate HTML table
+
+    Args:
+        data: Schedule data from Firebase or static source
+        current_week: Current ISO week number
+        current_year: Current year
+
+    Returns:
+        HTML string for the schedule table
+    """
+    if not data or not isinstance(data, dict):
+        return '<div class="info">❌ Aucune donnée disponible</div>'
+
+    monday_date = get_monday_of_week(current_week, current_year)
+    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+
+    schedule_by_day = {}
+
+    # Parse data for both directions
+    for destination in ['MOZ', 'PPT']:
+        if destination not in data or not isinstance(data[destination], list):
+            continue
+
+        for day_data in data[destination]:
+            if not day_data or not isinstance(day_data, dict):
+                continue
+
+            for schedule_id, schedule in day_data.items():
+                if not schedule or not isinstance(schedule, dict):
+                    continue
+
+                day = schedule.get('day')
+                if day is None:
+                    continue
+
+                if day not in schedule_by_day:
+                    schedule_by_day[day] = {
+                        'pptToMoz': [],
+                        'mozToPpt': []
+                    }
+
+                time_str = seconds_to_time(schedule.get('timeBegin', 0))
+                schedule_info = {
+                    'time': time_str,
+                    'timeBegin': schedule.get('timeBegin', 0),
+                    'vessel': schedule.get('vessel', 'N/A'),
+                    'status': schedule.get('status')
+                }
+
+                if schedule.get('origin') == 'PPT' and schedule.get('destination') == 'MOZ':
+                    schedule_by_day[day]['pptToMoz'].append(schedule_info)
+                elif schedule.get('origin') == 'MOZ' and schedule.get('destination') == 'PPT':
+                    schedule_by_day[day]['mozToPpt'].append(schedule_info)
+
+    # Sort schedules by time
+    for day in schedule_by_day:
+        schedule_by_day[day]['pptToMoz'].sort(key=lambda x: x['timeBegin'])
+        schedule_by_day[day]['mozToPpt'].sort(key=lambda x: x['timeBegin'])
+
+    # Generate HTML rows
+    rows = []
+    days_of_week = sorted(schedule_by_day.keys())
+
+    for day in days_of_week:
+        current_date = monday_date + timedelta(days=day)
+
+        date_str = current_date.strftime('%A %d %B').capitalize()
+        # Translate day names to French
+        day_names = {
+            'Monday': 'Lundi',
+            'Tuesday': 'Mardi',
+            'Wednesday': 'Mercredi',
+            'Thursday': 'Jeudi',
+            'Friday': 'Vendredi',
+            'Saturday': 'Samedi',
+            'Sunday': 'Dimanche'
+        }
+        for en, fr in day_names.items():
+            date_str = date_str.replace(en, fr)
+
+        # Translate month names to French
+        month_names = {
+            'January': 'janvier', 'February': 'février', 'March': 'mars',
+            'April': 'avril', 'May': 'mai', 'June': 'juin',
+            'July': 'juillet', 'August': 'août', 'September': 'septembre',
+            'October': 'octobre', 'November': 'novembre', 'December': 'décembre'
+        }
+        for en, fr in month_names.items():
+            date_str = date_str.replace(en, fr)
+
+        ppt_to_moz_times = schedule_by_day[day]['pptToMoz']
+        ppt_to_moz_html = ' '.join([
+            f'<span class="time-badge">{s["time"]}</span>'
+            for s in ppt_to_moz_times
+        ]) if ppt_to_moz_times else '<span style="color: #999;">-</span>'
+
+        moz_to_ppt_times = schedule_by_day[day]['mozToPpt']
+        moz_to_ppt_html = ' '.join([
+            f'<span class="time-badge">{s["time"]}</span>'
+            for s in moz_to_ppt_times
+        ]) if moz_to_ppt_times else '<span style="color: #999;">-</span>'
+
+        is_today = current_date.date() == today.date()
+        row_class = 'today' if is_today else ''
+
+        rows.append(f'''
+      <tr class="{row_class}">
+        <td class="date-cell">{date_str}</td>
+        <td class="times-cell">{ppt_to_moz_html}</td>
+        <td class="times-cell">{moz_to_ppt_html}</td>
+      </tr>
+    ''')
+
+    if not rows:
+        return '<div class="info">❌ Aucun horaire trouvé dans les données</div>'
+
+    return f'''
+    <table class="schedule-table">
+      <thead>
+        <tr>
+          <th>📅 Date</th>
+          <th>🚢 Départs Papeete → Moorea</th>
+          <th>🚢 Départs Moorea → Papeete</th>
+        </tr>
+      </thead>
+      <tbody>
+        {''.join(rows)}
+      </tbody>
+    </table>
+  '''
+
+
+def generate_multi_company_html(results: List[Dict], current_week: int, current_year: int):
+    """
+    Generate HTML page with schedules for all companies
+
+    Args:
+        results: List of fetch results for each company
+        current_week: Current ISO week number
+        current_year: Current year
+    """
+    now = datetime.now()
+
+    # Generate sections for each company
+    company_sections = []
+    for result in results:
+        if result['success']:
+            schedule_table = parse_schedule_data(result['data'], current_week, current_year)
+            company_sections.append(f'''
+        <div class="company-section">
+          <h2 style="color: {result['company']['color']};">🚢 {result['company']['name']}</h2>
+          {schedule_table}
+        </div>
+      ''')
+        else:
+            company_sections.append(f'''
+        <div class="company-section error-section">
+          <h2 style="color: #f5576c;">⚠️ {result['company']['name']}</h2>
+          <div class="error">
+            <strong>Erreur:</strong> {result['error']}
+          </div>
+        </div>
+      ''')
+
+    # French date formatting
+    day_names = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche']
+    month_names = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin',
+                   'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre']
+
+    weekday = day_names[now.weekday()]
+    month = month_names[now.month - 1]
+    date_formatted = f"{weekday} {now.day} {month} {now.year}"
+
+    html = f'''<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Horaires Ferries Tahiti-Moorea - Toutes Compagnies</title>
+    <style>
+        body {{
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+        }}
+        .container {{
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }}
+        h1 {{
+            color: #667eea;
+            text-align: center;
+            margin-bottom: 10px;
+        }}
+        .subtitle {{
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+        }}
+        .company-section {{
+            margin: 40px 0;
+            padding: 20px;
+            border-radius: 10px;
+            background: #f8f9fa;
+        }}
+        .company-section h2 {{
+            margin-top: 0;
+        }}
+        .error-section {{
+            background: #fff5f5;
+        }}
+        .info {{
+            background: #f0f4ff;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }}
+        .error {{
+            background: #fff5f5;
+            border-left: 4px solid #f5576c;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }}
+        .schedule-table {{
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            overflow: hidden;
+        }}
+        .schedule-table thead {{
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }}
+        .schedule-table th {{
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 16px;
+        }}
+        .schedule-table td {{
+            padding: 12px 15px;
+            border-bottom: 1px solid #e0e0e0;
+        }}
+        .schedule-table tbody tr:hover {{
+            background: #f8f9fa;
+        }}
+        .schedule-table tbody tr:last-child td {{
+            border-bottom: none;
+        }}
+        .date-cell {{
+            font-weight: 600;
+            color: #667eea;
+            white-space: nowrap;
+        }}
+        .times-cell {{
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+        }}
+        .time-badge {{
+            display: inline-block;
+            background: #f0f4ff;
+            padding: 4px 8px;
+            margin: 2px;
+            border-radius: 4px;
+            border: 1px solid #667eea;
+        }}
+        .today {{
+            background: #fff9e6 !important;
+        }}
+        .today .date-cell {{
+            color: #f5576c;
+        }}
+        .footer {{
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 2px solid #e0e0e0;
+            color: #666;
+            font-size: 14px;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚢 Horaires Ferries Tahiti-Moorea</h1>
+        <div class="subtitle">Semaine {current_week} de {current_year} - {date_formatted}</div>
+
+        <div class="info">
+            <strong>ℹ️ Informations:</strong><br>
+            Cette page affiche les horaires de toutes les compagnies maritimes desservant la liaison Tahiti-Moorea.<br>
+            Dernière mise à jour: {now.strftime('%d/%m/%Y à %H:%M:%S')}
+        </div>
+
+        {''.join(company_sections)}
+
+        <div class="footer">
+            <p>🔄 Page générée automatiquement via GitHub Actions</p>
+            <p>Projet: Moorea Life Schedule</p>
+        </div>
+    </div>
+</body>
+</html>'''
+
+    with open('index.html', 'w', encoding='utf-8') as f:
+        f.write(html)
+
+    print("✅ Page HTML multi-compagnies générée: index.html")
+
+
+def generate_error_html(error_message: str):
+    """
+    Generate error HTML page
+
+    Args:
+        error_message: Error message to display
+    """
+    now = datetime.now()
+
+    html = f'''<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Horaires Ferries Tahiti-Moorea - Erreur</title>
+    <style>
+        body {{
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }}
+        .container {{
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }}
+        h1 {{
+            color: #f5576c;
+            text-align: center;
+        }}
+        .error {{
+            background: #fff5f5;
+            border-left: 4px solid #f5576c;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }}
+        .footer {{
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 2px solid #e0e0e0;
+            color: #666;
+            font-size: 14px;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>❌ Erreur de récupération des données</h1>
+
+        <div class="error">
+            <strong>Message d'erreur:</strong><br>
+            {error_message}
+        </div>
+
+        <div class="error">
+            <strong>ℹ️ Informations:</strong><br>
+            La tentative de récupération des horaires depuis Firebase a échoué.<br>
+            Cela peut être dû à:<br>
+            <ul>
+                <li>Les données ne sont pas accessibles en lecture publique</li>
+                <li>L'authentification anonyme n'est pas activée</li>
+                <li>Les règles de sécurité Firebase bloquent l'accès</li>
+            </ul>
+        </div>
+
+        <div class="footer">
+            <p>Date de la tentative: {now.strftime('%d/%m/%Y à %H:%M:%S')}</p>
+            <p>🔄 Page générée automatiquement via GitHub Actions</p>
+        </div>
+    </div>
+</body>
+</html>'''
+
+    with open('index.html', 'w', encoding='utf-8') as f:
+        f.write(html)
+
+    print("⚠️  Page HTML d'erreur générée: index.html")
+
+
+def fetch_all_schedules():
+    """Main function to fetch all schedules"""
+    try:
+        print("📋 Chargement de la configuration des compagnies...")
+
+        # Load companies configuration
+        with open('companies.json', 'r', encoding='utf-8') as f:
+            companies_config = json.load(f)
+
+        all_companies = companies_config['companies']
+
+        # Filter only configured companies
+        companies = [c for c in all_companies if is_company_configured(c)]
+
+        print(f"✅ {len(companies)} compagnie(s) configurée(s) sur {len(all_companies)} au total")
+
+        # Calculate current week and year
+        now = datetime.now()
+        current_week = get_week_number(now)
+        current_year = now.year
+
+        print(f"📅 Semaine {current_week} de {current_year}")
+
+        # Create data directory if it doesn't exist
+        os.makedirs('data', exist_ok=True)
+
+        # Fetch schedules for each company
+        results = []
+        for company in companies:
+            if company.get('staticSchedule'):
+                # Load from static file
+                result = load_static_schedules(company, current_week, current_year)
+            else:
+                # Fetch from Firebase
+                result = fetch_company_schedules(company, current_week, current_year)
+
+            results.append(result)
+
+        # Generate HTML page
+        generate_multi_company_html(results, current_week, current_year)
+
+        print("\n✅ Processus terminé avec succès!")
+        return 0
+
+    except Exception as e:
+        print(f"❌ Erreur générale: {e}")
+        generate_error_html(str(e))
+        return 1
+
+
+if __name__ == '__main__':
+    sys.exit(fetch_all_schedules())

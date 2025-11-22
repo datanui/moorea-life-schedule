@@ -3,14 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Horaires Ferries Tahiti-Moorea - Erreur</title>
+    <title>Horaires Ferries Tahiti-Moorea - Toutes Compagnies</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
             padding: 20px;
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
         }
         .container {
             background: white;
@@ -19,8 +20,33 @@
             box-shadow: 0 10px 40px rgba(0,0,0,0.2);
         }
         h1 {
-            color: #f5576c;
+            color: #667eea;
             text-align: center;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+        }
+        .company-section {
+            margin: 40px 0;
+            padding: 20px;
+            border-radius: 10px;
+            background: #f8f9fa;
+        }
+        .company-section h2 {
+            margin-top: 0;
+        }
+        .error-section {
+            background: #fff5f5;
+        }
+        .info {
+            background: #f0f4ff;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
         }
         .error {
             background: #fff5f5;
@@ -28,6 +54,59 @@
             padding: 15px;
             margin: 20px 0;
             border-radius: 5px;
+        }
+        .schedule-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .schedule-table thead {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .schedule-table th {
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 16px;
+        }
+        .schedule-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .schedule-table tbody tr:hover {
+            background: #f8f9fa;
+        }
+        .schedule-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+        .date-cell {
+            font-weight: 600;
+            color: #667eea;
+            white-space: nowrap;
+        }
+        .times-cell {
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        .time-badge {
+            display: inline-block;
+            background: #f0f4ff;
+            padding: 4px 8px;
+            margin: 2px;
+            border-radius: 4px;
+            border: 1px solid #667eea;
+        }
+        .today {
+            background: #fff9e6 !important;
+        }
+        .today .date-cell {
+            color: #f5576c;
         }
         .footer {
             text-align: center;
@@ -41,27 +120,101 @@
 </head>
 <body>
     <div class="container">
-        <h1>❌ Erreur de récupération des données</h1>
+        <h1>🚢 Horaires Ferries Tahiti-Moorea</h1>
+        <div class="subtitle">Semaine 47 de 2025 - samedi 22 novembre 2025</div>
 
-        <div class="error">
-            <strong>Message d'erreur:</strong><br>
-            Aucune donnée récupérée depuis Firebase
-        </div>
-
-        <div class="error">
+        <div class="info">
             <strong>ℹ️ Informations:</strong><br>
-            La tentative de récupération des horaires depuis Firebase a échoué.<br>
-            Cela peut être dû à:<br>
-            <ul>
-                <li>Les données ne sont pas accessibles en lecture publique</li>
-                <li>L'authentification anonyme n'est pas activée</li>
-                <li>Les règles de sécurité Firebase bloquent l'accès</li>
-            </ul>
+            Cette page affiche les horaires de toutes les compagnies maritimes desservant la liaison Tahiti-Moorea.<br>
+            Dernière mise à jour: 22/11/2025 à 01:06:58
         </div>
+
+        
+        <div class="company-section error-section">
+          <h2 style="color: #f5576c;">⚠️ Terevau</h2>
+          <div class="error">
+            <strong>Erreur:</strong> 403 Client Error: Forbidden for url: https://terevau-9651d.firebaseio.com/Calendar/2025/47.json?auth=AIzaSyB0wkLX44cZtk4lIDSVOQiOFwvts-Wqm3I
+          </div>
+        </div>
+      
+        <div class="company-section error-section">
+          <h2 style="color: #f5576c;">⚠️ Aremiti Express</h2>
+          <div class="error">
+            <strong>Erreur:</strong> 403 Client Error: Forbidden for url: https://aremiti-1d663-default-rtdb.europe-west1.firebasedatabase.app/Calendar/2025/47.json?auth=AIzaSyCqFQinSeDSkOCLNyuoxQ_SG9mL-NtQLOY
+          </div>
+        </div>
+      
+        <div class="company-section error-section">
+          <h2 style="color: #f5576c;">⚠️ Vaeara'i</h2>
+          <div class="error">
+            <strong>Erreur:</strong> 403 Client Error: Forbidden for url: https://terevaupiti-default-rtdb.firebaseio.com/Calendar/2025/47.json?auth=AIzaSyCImqZ7ioJlgcGLA-Yi8PcFIUkwCy00Sfo
+          </div>
+        </div>
+      
+        <div class="company-section">
+          <h2 style="color: #f6ad55;">🚢 Tauati Ferry</h2>
+          
+    <table class="schedule-table">
+      <thead>
+        <tr>
+          <th>📅 Date</th>
+          <th>🚢 Départs Papeete → Moorea</th>
+          <th>🚢 Départs Moorea → Papeete</th>
+        </tr>
+      </thead>
+      <tbody>
+        
+      <tr class="">
+        <td class="date-cell">Lundi 17 november</td>
+        <td class="times-cell"><span class="time-badge">05:40</span> <span class="time-badge">08:30</span> <span class="time-badge">11:00</span> <span class="time-badge">15:00</span></td>
+        <td class="times-cell"><span class="time-badge">07:15</span> <span class="time-badge">09:45</span> <span class="time-badge">12:30</span> <span class="time-badge">16:15</span></td>
+      </tr>
+    
+      <tr class="">
+        <td class="date-cell">Mardi 18 november</td>
+        <td class="times-cell"><span class="time-badge">05:40</span> <span class="time-badge">08:30</span> <span class="time-badge">11:00</span> <span class="time-badge">15:00</span></td>
+        <td class="times-cell"><span class="time-badge">07:15</span> <span class="time-badge">09:45</span> <span class="time-badge">12:30</span> <span class="time-badge">16:15</span></td>
+      </tr>
+    
+      <tr class="">
+        <td class="date-cell">Mercredi 19 november</td>
+        <td class="times-cell"><span class="time-badge">05:40</span> <span class="time-badge">08:30</span> <span class="time-badge">11:00</span> <span class="time-badge">15:00</span></td>
+        <td class="times-cell"><span class="time-badge">07:15</span> <span class="time-badge">09:45</span> <span class="time-badge">12:30</span> <span class="time-badge">16:15</span></td>
+      </tr>
+    
+      <tr class="">
+        <td class="date-cell">Jeudi 20 november</td>
+        <td class="times-cell"><span class="time-badge">05:40</span> <span class="time-badge">08:30</span> <span class="time-badge">11:00</span> <span class="time-badge">15:00</span></td>
+        <td class="times-cell"><span class="time-badge">07:15</span> <span class="time-badge">09:45</span> <span class="time-badge">12:30</span> <span class="time-badge">16:15</span></td>
+      </tr>
+    
+      <tr class="">
+        <td class="date-cell">Vendredi 21 november</td>
+        <td class="times-cell"><span class="time-badge">05:40</span> <span class="time-badge">08:30</span> <span class="time-badge">11:00</span> <span class="time-badge">15:00</span> <span class="time-badge">17:30</span></td>
+        <td class="times-cell"><span class="time-badge">07:15</span> <span class="time-badge">09:45</span> <span class="time-badge">12:30</span> <span class="time-badge">16:15</span> <span class="time-badge">18:30</span></td>
+      </tr>
+    
+      <tr class="today">
+        <td class="date-cell">Samedi 22 november</td>
+        <td class="times-cell"><span class="time-badge">07:00</span> <span class="time-badge">09:30</span> <span class="time-badge">12:00</span></td>
+        <td class="times-cell"><span class="time-badge">08:15</span> <span class="time-badge">10:45</span> <span class="time-badge">17:30</span></td>
+      </tr>
+    
+      <tr class="">
+        <td class="date-cell">Dimanche 23 november</td>
+        <td class="times-cell"><span class="time-badge">07:00</span> <span class="time-badge">14:45</span> <span class="time-badge">17:15</span></td>
+        <td class="times-cell"><span class="time-badge">13:30</span> <span class="time-badge">16:00</span> <span class="time-badge">18:30</span></td>
+      </tr>
+    
+      </tbody>
+    </table>
+  
+        </div>
+      
 
         <div class="footer">
-            <p>Date de la tentative: 10/11/2025 17:54:18</p>
             <p>🔄 Page générée automatiquement via GitHub Actions</p>
+            <p>Projet: Moorea Life Schedule</p>
         </div>
     </div>
 </body>
