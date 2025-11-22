@@ -25,6 +25,119 @@ function getMondayOfWeek(week, year) {
   return targetMonday;
 }
 
+// Fonction pour charger les horaires statiques depuis un fichier JSON
+function loadStaticSchedules(company, currentWeek, currentYear) {
+  console.log(`\n🚢 Traitement de ${company.name} (horaires statiques)...`);
+
+  try {
+    const scheduleData = JSON.parse(fs.readFileSync(company.scheduleFile, 'utf8'));
+    const companyData = scheduleData[company.name];
+
+    if (!companyData) {
+      console.log(`❌ Aucune donnée trouvée pour ${company.name} dans ${company.scheduleFile}`);
+      return {
+        success: false,
+        company: company,
+        error: `Aucune donnée trouvée dans le fichier`
+      };
+    }
+
+    // Convertir le format statique vers le format Firebase attendu
+    const convertedData = {};
+    const dayMapping = {
+      'Lundi': 0,
+      'Mardi': 1,
+      'Mercredi': 2,
+      'Jeudi': 3,
+      'Vendredi': 4,
+      'Samedi': 5,
+      'Dimanche': 6
+    };
+
+    const timeToSeconds = (timeStr) => {
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      return hours * 3600 + minutes * 60;
+    };
+
+    // Convertir les horaires Tahiti vers Moorea
+    if (companyData.TahitiVersMoorea) {
+      convertedData.MOZ = [];
+      for (let day = 0; day < 7; day++) {
+        convertedData.MOZ[day] = {};
+      }
+
+      for (const [dayName, times] of Object.entries(companyData.TahitiVersMoorea)) {
+        const dayIndex = dayMapping[dayName];
+        if (dayIndex !== undefined && Array.isArray(times)) {
+          times.forEach((time, idx) => {
+            convertedData.MOZ[dayIndex][`schedule_${idx}`] = {
+              day: dayIndex,
+              timeBegin: timeToSeconds(time),
+              origin: 'PPT',
+              destination: 'MOZ',
+              vessel: company.name,
+              status: 'active'
+            };
+          });
+        }
+      }
+    }
+
+    // Convertir les horaires Moorea vers Tahiti
+    if (companyData.MooreaVersTahiti) {
+      convertedData.PPT = [];
+      for (let day = 0; day < 7; day++) {
+        convertedData.PPT[day] = {};
+      }
+
+      for (const [dayName, times] of Object.entries(companyData.MooreaVersTahiti)) {
+        const dayIndex = dayMapping[dayName];
+        if (dayIndex !== undefined && Array.isArray(times)) {
+          times.forEach((time, idx) => {
+            convertedData.PPT[dayIndex][`schedule_${idx}`] = {
+              day: dayIndex,
+              timeBegin: timeToSeconds(time),
+              origin: 'MOZ',
+              destination: 'PPT',
+              vessel: company.name,
+              status: 'active'
+            };
+          });
+        }
+      }
+    }
+
+    console.log(`✅ Données statiques chargées pour ${company.name}`);
+
+    // Sauvegarder dans data/{company-id}.json
+    const filename = `data/${company.id}.json`;
+    fs.writeFileSync(filename, JSON.stringify({
+      company: company.name,
+      companyId: company.id,
+      week: currentWeek,
+      year: currentYear,
+      data: convertedData,
+      lastUpdate: new Date().toISOString(),
+      source: 'static'
+    }, null, 2));
+    console.log(`💾 Données sauvegardées: ${filename}`);
+
+    return {
+      success: true,
+      company: company,
+      data: convertedData
+    };
+
+  } catch (error) {
+    console.error(`❌ Erreur pour ${company.name}:`, error.message);
+    return {
+      success: false,
+      company: company,
+      error: error.message
+    };
+  }
+}
+
 // Fonction pour récupérer les horaires d'une compagnie
 async function fetchCompanySchedules(company, currentWeek, currentYear) {
   console.log(`\n🚢 Traitement de ${company.name}...`);
@@ -98,7 +211,17 @@ async function fetchCompanySchedules(company, currentWeek, currentYear) {
 
 // Fonction pour vérifier si une compagnie est configurée
 function isCompanyConfigured(company) {
+  // Si c'est une compagnie avec horaires statiques
+  if (company.staticSchedule) {
+    return true;
+  }
+
+  // Sinon, vérifier la configuration Firebase
   const firebase = company.firebase;
+  if (!firebase) {
+    return false;
+  }
+
   // Vérifier si ce sont des valeurs placeholder
   if (firebase.apiKey.startsWith('YOUR_') ||
       firebase.databaseURL.includes('your-project') ||
@@ -137,7 +260,16 @@ async function fetchAllSchedules() {
     // Récupérer les horaires pour chaque compagnie
     const results = [];
     for (const company of companies) {
-      const result = await fetchCompanySchedules(company, currentWeek, currentYear);
+      let result;
+
+      if (company.staticSchedule) {
+        // Charger depuis un fichier statique
+        result = loadStaticSchedules(company, currentWeek, currentYear);
+      } else {
+        // Récupérer depuis Firebase
+        result = await fetchCompanySchedules(company, currentWeek, currentYear);
+      }
+
       results.push(result);
 
       // Petit délai entre chaque requête

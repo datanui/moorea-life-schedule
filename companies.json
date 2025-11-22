@@ -29,31 +29,24 @@
       "color": "#f5576c"
     },
     {
-      "id": "company3",
-      "name": "Compagnie 3",
+      "id": "vaearai",
+      "name": "Vaeara'i",
       "firebase": {
-        "apiKey": "YOUR_API_KEY",
-        "authDomain": "your-project.firebaseapp.com",
-        "databaseURL": "https://your-project.firebaseio.com",
-        "projectId": "your-project",
-        "storageBucket": "your-project.appspot.com",
+        "apiKey": "AIzaSyCImqZ7ioJlgcGLA-Yi8PcFIUkwCy00Sfo",
+        "authDomain": "terevaupiti-default-rtdb.firebaseapp.com",
+        "databaseURL": "https://terevaupiti-default-rtdb.firebaseio.com",
+        "projectId": "terevaupiti-default-rtdb",
+        "storageBucket": "terevaupiti-default-rtdb.appspot.com",
         "messagingSenderId": "YOUR_MESSAGING_SENDER_ID",
         "appId": "YOUR_APP_ID"
       },
       "color": "#38b2ac"
     },
     {
-      "id": "company4",
-      "name": "Compagnie 4",
-      "firebase": {
-        "apiKey": "YOUR_API_KEY",
-        "authDomain": "your-project.firebaseapp.com",
-        "databaseURL": "https://your-project.firebaseio.com",
-        "projectId": "your-project",
-        "storageBucket": "your-project.appspot.com",
-        "messagingSenderId": "YOUR_MESSAGING_SENDER_ID",
-        "appId": "YOUR_APP_ID"
-      },
+      "id": "tauati",
+      "name": "Tauati Ferry",
+      "staticSchedule": true,
+      "scheduleFile": "horaires_tauati.json",
       "color": "#f6ad55"
     }
   ]
