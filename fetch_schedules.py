@@ -74,6 +74,33 @@ def seconds_to_time(seconds: int) -> str:
     return f"{hours:02d}:{minutes:02d}"
 
 
+def parse_vessel_name(vessel_string: str) -> str:
+    """
+    Parse vessel name from Firebase data to extract clean vessel name
+
+    Examples:
+        "Aremiti 5-26v" -> "Aremiti 5"
+        "Aremiti 6-30v" -> "Aremiti 6"
+        "Terevau" -> "Terevau"
+
+    Args:
+        vessel_string: Raw vessel string from Firebase
+
+    Returns:
+        Clean vessel name
+    """
+    import re
+
+    if not vessel_string:
+        return vessel_string
+
+    # Remove suffix pattern like "-26v", "-30v", etc.
+    # Pattern: dash followed by digits and optional letters
+    cleaned = re.sub(r'-\d+[a-zA-Z]*$', '', vessel_string)
+
+    return cleaned.strip()
+
+
 def load_static_schedules(company: Dict, week: int, year: int) -> Dict:
     """
     Load static schedules from a JSON file
@@ -223,18 +250,24 @@ def fetch_company_schedules(company: Dict, week: int, year: int) -> Dict:
         if data:
             print(f"✅ Données récupérées pour {company['name']}")
 
-            # Determine vessel_name (use company name if not specified)
-            vessel_name = company.get('vessel_name', company['name'])
-
-            # Add vessel_name to each schedule if not present
+            # Add vessel_name to each schedule
             for destination in ['MOZ', 'PPT']:
                 if destination in data and isinstance(data[destination], list):
                     for day_data in data[destination]:
                         if day_data and isinstance(day_data, dict):
                             for schedule_id, schedule in day_data.items():
                                 if schedule and isinstance(schedule, dict):
-                                    if 'vessel_name' not in schedule:
-                                        schedule['vessel_name'] = vessel_name
+                                    # Extract vessel_name from the 'vessel' field if present
+                                    if 'vessel' in schedule and schedule['vessel']:
+                                        # Parse vessel name to remove suffixes like "-26v"
+                                        raw_vessel = schedule['vessel']
+                                        clean_vessel_name = parse_vessel_name(raw_vessel)
+                                        schedule['vessel_name'] = clean_vessel_name
+                                    elif 'vessel_name' not in schedule:
+                                        # Fallback to company's configured vessel_name or company name
+                                        schedule['vessel_name'] = company.get('vessel_name', company['name'])
+
+                                    # Ensure 'vessel' field exists
                                     if 'vessel' not in schedule:
                                         schedule['vessel'] = company['name']
 

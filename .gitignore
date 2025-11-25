@@ -4,6 +4,8 @@ node_modules/
 .DS_Store
 firebase-debug.log
 firestore-debug.log
+__pycache__/
+*.pyc
 
 # Fichiers générés localement (pas par CI)
 # index.html et les fichiers JSON dans data/ seront générés par GitHub Actions
