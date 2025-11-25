@@ -74,19 +74,19 @@ def seconds_to_time(seconds: int) -> str:
     return f"{hours:02d}:{minutes:02d}"
 
 
-def load_static_schedules(company: Dict, current_week: int, current_year: int) -> Dict:
+def load_static_schedules(company: Dict, week: int, year: int) -> Dict:
     """
     Load static schedules from a JSON file
 
     Args:
         company: Company configuration
-        current_week: Current ISO week number
-        current_year: Current year
+        week: ISO week number
+        year: Year
 
     Returns:
         Result dictionary with success status and data
     """
-    print(f"\n🚢 Traitement de {company['name']} (horaires statiques)...")
+    print(f"\n🚢 Traitement de {company['name']} (horaires statiques) - Semaine {week}...")
 
     try:
         with open(company['scheduleFile'], 'r', encoding='utf-8') as f:
@@ -114,6 +114,9 @@ def load_static_schedules(company: Dict, current_week: int, current_year: int) -
             'Dimanche': 6
         }
 
+        # Determine vessel_name (use company name if not specified)
+        vessel_name = company.get('vessel_name', company['name'])
+
         # Convert Tahiti to Moorea schedules
         if 'TahitiVersMoorea' in company_data:
             converted_data['MOZ'] = [{} for _ in range(7)]
@@ -128,6 +131,7 @@ def load_static_schedules(company: Dict, current_week: int, current_year: int) -
                             'origin': 'PPT',
                             'destination': 'MOZ',
                             'vessel': company['name'],
+                            'vessel_name': vessel_name,
                             'status': 'active'
                         }
 
@@ -145,20 +149,21 @@ def load_static_schedules(company: Dict, current_week: int, current_year: int) -
                             'origin': 'MOZ',
                             'destination': 'PPT',
                             'vessel': company['name'],
+                            'vessel_name': vessel_name,
                             'status': 'active'
                         }
 
         print(f"✅ Données statiques chargées pour {company['name']}")
 
-        # Save to data/{company-id}.json
+        # Save to data/{company-id}_week{week}.json
         os.makedirs('data', exist_ok=True)
-        filename = f"data/{company['id']}.json"
+        filename = f"data/{company['id']}_week{week}.json"
         with open(filename, 'w', encoding='utf-8') as f:
             json.dump({
                 'company': company['name'],
                 'companyId': company['id'],
-                'week': current_week,
-                'year': current_year,
+                'week': week,
+                'year': year,
                 'data': converted_data,
                 'lastUpdate': datetime.now().isoformat(),
                 'source': 'static'
@@ -168,6 +173,8 @@ def load_static_schedules(company: Dict, current_week: int, current_year: int) -
         return {
             'success': True,
             'company': company,
+            'week': week,
+            'year': year,
             'data': converted_data
         }
 
@@ -180,24 +187,24 @@ def load_static_schedules(company: Dict, current_week: int, current_year: int) -
         }
 
 
-def fetch_company_schedules(company: Dict, current_week: int, current_year: int) -> Dict:
+def fetch_company_schedules(company: Dict, week: int, year: int) -> Dict:
     """
     Fetch schedules for a company from Firebase
 
     Args:
         company: Company configuration with Firebase settings
-        current_week: Current ISO week number
-        current_year: Current year
+        week: ISO week number
+        year: Year
 
     Returns:
         Result dictionary with success status and data
     """
-    print(f"\n🚢 Traitement de {company['name']}...")
+    print(f"\n🚢 Traitement de {company['name']} - Semaine {week}...")
 
     try:
         # Build Firebase REST API URL
         database_url = company['firebase']['databaseURL']
-        week_path = f"Calendar/{current_year}/{current_week}"
+        week_path = f"Calendar/{year}/{week}"
         url = f"{database_url}/{week_path}.json"
 
         # Add auth parameter if needed
@@ -216,15 +223,30 @@ def fetch_company_schedules(company: Dict, current_week: int, current_year: int)
         if data:
             print(f"✅ Données récupérées pour {company['name']}")
 
-            # Save to data/{company-id}.json
+            # Determine vessel_name (use company name if not specified)
+            vessel_name = company.get('vessel_name', company['name'])
+
+            # Add vessel_name to each schedule if not present
+            for destination in ['MOZ', 'PPT']:
+                if destination in data and isinstance(data[destination], list):
+                    for day_data in data[destination]:
+                        if day_data and isinstance(day_data, dict):
+                            for schedule_id, schedule in day_data.items():
+                                if schedule and isinstance(schedule, dict):
+                                    if 'vessel_name' not in schedule:
+                                        schedule['vessel_name'] = vessel_name
+                                    if 'vessel' not in schedule:
+                                        schedule['vessel'] = company['name']
+
+            # Save to data/{company-id}_week{week}.json
             os.makedirs('data', exist_ok=True)
-            filename = f"data/{company['id']}.json"
+            filename = f"data/{company['id']}_week{week}.json"
             with open(filename, 'w', encoding='utf-8') as f:
                 json.dump({
                     'company': company['name'],
                     'companyId': company['id'],
-                    'week': current_week,
-                    'year': current_year,
+                    'week': week,
+                    'year': year,
                     'data': data,
                     'lastUpdate': datetime.now().isoformat()
                 }, f, indent=2, ensure_ascii=False)
@@ -233,6 +255,8 @@ def fetch_company_schedules(company: Dict, current_week: int, current_year: int)
             return {
                 'success': True,
                 'company': company,
+                'week': week,
+                'year': year,
                 'data': data
             }
         else:
@@ -240,7 +264,7 @@ def fetch_company_schedules(company: Dict, current_week: int, current_year: int)
             return {
                 'success': False,
                 'company': company,
-                'error': f"Aucune donnée trouvée pour la semaine {current_week}"
+                'error': f"Aucune donnée trouvée pour la semaine {week}"
             }
 
     except Exception as e:
@@ -416,35 +440,86 @@ def parse_schedule_data(data: Dict, current_week: int, current_year: int) -> str
 
 def generate_multi_company_html(results: List[Dict], current_week: int, current_year: int):
     """
-    Generate HTML page with schedules for all companies
+    Generate HTML page with schedules for all companies using unified horaires.json
 
     Args:
-        results: List of fetch results for each company
+        results: List of fetch results for each company (not used, kept for compatibility)
         current_week: Current ISO week number
         current_year: Current year
     """
     now = datetime.now()
 
-    # Generate sections for each company
-    company_sections = []
-    for result in results:
-        if result['success']:
-            schedule_table = parse_schedule_data(result['data'], current_week, current_year)
-            company_sections.append(f'''
-        <div class="company-section">
-          <h2 style="color: {result['company']['color']};">🚢 {result['company']['name']}</h2>
-          {schedule_table}
-        </div>
-      ''')
-        else:
-            company_sections.append(f'''
-        <div class="company-section error-section">
-          <h2 style="color: #f5576c;">⚠️ {result['company']['name']}</h2>
-          <div class="error">
-            <strong>Erreur:</strong> {result['error']}
-          </div>
-        </div>
-      ''')
+    # Load unified schedules from horaires.json
+    try:
+        with open('horaires.json', 'r', encoding='utf-8') as f:
+            all_schedules = json.load(f)
+    except FileNotFoundError:
+        all_schedules = []
+
+    # Separate schedules by direction
+    tahiti_to_moorea = []
+    moorea_to_tahiti = []
+
+    for schedule in all_schedules:
+        # Translate day names to French
+        day_translation = {
+            'Monday': 'Lundi',
+            'Tuesday': 'Mardi',
+            'Wednesday': 'Mercredi',
+            'Thursday': 'Jeudi',
+            'Friday': 'Vendredi',
+            'Saturday': 'Samedi',
+            'Sunday': 'Dimanche'
+        }
+        jour_fr = day_translation.get(schedule['jour'], schedule['jour'])
+
+        # Format: "Lundi 25 novembre - 08:30"
+        date_obj = datetime.fromisoformat(schedule['timestamp'])
+        month_names_fr = {
+            1: 'janvier', 2: 'février', 3: 'mars', 4: 'avril', 5: 'mai', 6: 'juin',
+            7: 'juillet', 8: 'août', 9: 'septembre', 10: 'octobre', 11: 'novembre', 12: 'décembre'
+        }
+        date_formatted = f"{jour_fr} {date_obj.day} {month_names_fr[date_obj.month]}"
+
+        schedule_entry = {
+            'bateau': schedule['bateau'],
+            'date_heure': f"{date_formatted} - {schedule['heure']}",
+            'timestamp': schedule['timestamp'],
+            'date': date_obj
+        }
+
+        if schedule['origine'] == 'PPT' and schedule['destination'] == 'MOZ':
+            tahiti_to_moorea.append(schedule_entry)
+        elif schedule['origine'] == 'MOZ' and schedule['destination'] == 'PPT':
+            moorea_to_tahiti.append(schedule_entry)
+
+    # Sort by timestamp
+    tahiti_to_moorea.sort(key=lambda x: x['timestamp'])
+    moorea_to_tahiti.sort(key=lambda x: x['timestamp'])
+
+    # Generate table rows for Tahiti to Moorea
+    tahiti_moorea_rows = []
+    for schedule in tahiti_to_moorea:
+        is_today = schedule['date'].date() == now.date()
+        row_class = 'today' if is_today else ''
+        tahiti_moorea_rows.append(f'''
+          <tr class="{row_class}">
+            <td class="vessel-cell">{schedule['bateau']}</td>
+            <td class="datetime-cell">{schedule['date_heure']}</td>
+          </tr>
+        ''')
+
+    # Generate table rows for Moorea to Tahiti
+    moorea_tahiti_rows = []
+    for schedule in moorea_to_tahiti:
+        is_today = schedule['date'].date() == now.date()
+        row_class = 'today' if is_today else ''
+        moorea_tahiti_rows.append(f'''
+          <tr class="{row_class}">
+            <td class="vessel-cell">{schedule['bateau']}</td>
+            <td class="datetime-cell">{schedule['date_heure']}</td>
+          </tr>
+        ''')
 
     # French date formatting
     day_names = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche']
@@ -454,6 +529,10 @@ def generate_multi_company_html(results: List[Dict], current_week: int, current_
     weekday = day_names[now.weekday()]
     month = month_names[now.month - 1]
     date_formatted = f"{weekday} {now.day} {month} {now.year}"
+
+    # Determine next week for display
+    next_week_date = now + timedelta(weeks=1)
+    next_week = get_week_number(next_week_date)
 
     html = f'''<!DOCTYPE html>
 <html lang="fr">
@@ -481,33 +560,19 @@ def generate_multi_company_html(results: List[Dict], current_week: int, current_
             text-align: center;
             margin-bottom: 10px;
         }}
+        h2 {{
+            color: #764ba2;
+            margin-top: 30px;
+            margin-bottom: 15px;
+        }}
         .subtitle {{
             text-align: center;
             color: #666;
             margin-bottom: 30px;
         }}
-        .company-section {{
-            margin: 40px 0;
-            padding: 20px;
-            border-radius: 10px;
-            background: #f8f9fa;
-        }}
-        .company-section h2 {{
-            margin-top: 0;
-        }}
-        .error-section {{
-            background: #fff5f5;
-        }}
         .info {{
             background: #f0f4ff;
             border-left: 4px solid #667eea;
-            padding: 15px;
-            margin: 20px 0;
-            border-radius: 5px;
-        }}
-        .error {{
-            background: #fff5f5;
-            border-left: 4px solid #f5576c;
             padding: 15px;
             margin: 20px 0;
             border-radius: 5px;
@@ -541,28 +606,18 @@ def generate_multi_company_html(results: List[Dict], current_week: int, current_
         .schedule-table tbody tr:last-child td {{
             border-bottom: none;
         }}
-        .date-cell {{
+        .vessel-cell {{
             font-weight: 600;
             color: #667eea;
-            white-space: nowrap;
         }}
-        .times-cell {{
+        .datetime-cell {{
             font-family: 'Courier New', monospace;
             font-size: 14px;
-            line-height: 1.6;
-        }}
-        .time-badge {{
-            display: inline-block;
-            background: #f0f4ff;
-            padding: 4px 8px;
-            margin: 2px;
-            border-radius: 4px;
-            border: 1px solid #667eea;
         }}
         .today {{
             background: #fff9e6 !important;
         }}
-        .today .date-cell {{
+        .today .vessel-cell {{
             color: #f5576c;
         }}
         .footer {{
@@ -578,15 +633,39 @@ def generate_multi_company_html(results: List[Dict], current_week: int, current_
 <body>
     <div class="container">
         <h1>🚢 Horaires Ferries Tahiti-Moorea</h1>
-        <div class="subtitle">Semaine {current_week} de {current_year} - {date_formatted}</div>
+        <div class="subtitle">Semaines {current_week} et {next_week} de {current_year} - {date_formatted}</div>
 
         <div class="info">
             <strong>ℹ️ Informations:</strong><br>
-            Cette page affiche les horaires de toutes les compagnies maritimes desservant la liaison Tahiti-Moorea.<br>
+            Cette page affiche les horaires de toutes les compagnies maritimes desservant la liaison Tahiti-Moorea pour les deux prochaines semaines.<br>
             Dernière mise à jour: {now.strftime('%d/%m/%Y à %H:%M:%S')}
         </div>
 
-        {''.join(company_sections)}
+        <h2>🚢 Départs Papeete → Moorea</h2>
+        <table class="schedule-table">
+            <thead>
+                <tr>
+                    <th>Nom du Bateau</th>
+                    <th>Jour et Heure du Départ</th>
+                </tr>
+            </thead>
+            <tbody>
+                {''.join(tahiti_moorea_rows) if tahiti_moorea_rows else '<tr><td colspan="2">Aucun horaire disponible</td></tr>'}
+            </tbody>
+        </table>
+
+        <h2>🚢 Départs Moorea → Papeete</h2>
+        <table class="schedule-table">
+            <thead>
+                <tr>
+                    <th>Nom du Bateau</th>
+                    <th>Jour et Heure du Départ</th>
+                </tr>
+            </thead>
+            <tbody>
+                {''.join(moorea_tahiti_rows) if moorea_tahiti_rows else '<tr><td colspan="2">Aucun horaire disponible</td></tr>'}
+            </tbody>
+        </table>
 
         <div class="footer">
             <p>🔄 Page générée automatiquement via GitHub Actions</p>
@@ -686,6 +765,79 @@ def generate_error_html(error_message: str):
     print("⚠️  Page HTML d'erreur générée: index.html")
 
 
+def create_unified_horaires_json(all_results: List[Dict]):
+    """
+    Create a unified horaires.json file with all schedules from all companies for all weeks
+
+    Args:
+        all_results: List of all fetch results (all companies, all weeks)
+    """
+    print("\n📦 Création du fichier horaires.json unifié...")
+
+    unified_schedules = []
+
+    for result in all_results:
+        if not result['success']:
+            continue
+
+        company = result['company']
+        week = result['week']
+        year = result['year']
+        data = result['data']
+
+        # Get Monday of the week
+        monday_date = get_monday_of_week(week, year)
+
+        # Process schedules
+        for destination in ['MOZ', 'PPT']:
+            if destination not in data or not isinstance(data[destination], list):
+                continue
+
+            for day_data in data[destination]:
+                if not day_data or not isinstance(day_data, dict):
+                    continue
+
+                for schedule_id, schedule in day_data.items():
+                    if not schedule or not isinstance(schedule, dict):
+                        continue
+
+                    day = schedule.get('day')
+                    if day is None:
+                        continue
+
+                    # Calculate actual date
+                    actual_date = monday_date + timedelta(days=day)
+
+                    # Get vessel name
+                    vessel_name = schedule.get('vessel_name', company.get('vessel_name', company['name']))
+
+                    # Create schedule entry
+                    unified_schedules.append({
+                        'bateau': vessel_name,
+                        'compagnie': company['name'],
+                        'origine': schedule.get('origin', ''),
+                        'destination': schedule.get('destination', ''),
+                        'date': actual_date.strftime('%Y-%m-%d'),
+                        'jour': actual_date.strftime('%A'),
+                        'heure': seconds_to_time(schedule.get('timeBegin', 0)),
+                        'timestamp': actual_date.replace(
+                            hour=schedule.get('timeBegin', 0) // 3600,
+                            minute=(schedule.get('timeBegin', 0) % 3600) // 60
+                        ).isoformat(),
+                        'statut': schedule.get('status', 'active')
+                    })
+
+    # Sort by timestamp
+    unified_schedules.sort(key=lambda x: x['timestamp'])
+
+    # Save to horaires.json
+    with open('horaires.json', 'w', encoding='utf-8') as f:
+        json.dump(unified_schedules, f, indent=2, ensure_ascii=False)
+
+    print(f"✅ Fichier horaires.json créé avec {len(unified_schedules)} horaires")
+    return unified_schedules
+
+
 def fetch_all_schedules():
     """Main function to fetch all schedules"""
     try:
@@ -702,36 +854,47 @@ def fetch_all_schedules():
 
         print(f"✅ {len(companies)} compagnie(s) configurée(s) sur {len(all_companies)} au total")
 
-        # Calculate current week and year
+        # Calculate current week and next week
         now = datetime.now()
         current_week = get_week_number(now)
         current_year = now.year
 
-        print(f"📅 Semaine {current_week} de {current_year}")
+        # Calculate next week
+        next_week_date = now + timedelta(weeks=1)
+        next_week = get_week_number(next_week_date)
+        next_week_year = next_week_date.year
+
+        print(f"📅 Récupération des semaines {current_week} et {next_week} de {current_year}")
 
         # Create data directory if it doesn't exist
         os.makedirs('data', exist_ok=True)
 
-        # Fetch schedules for each company
-        results = []
+        # Fetch schedules for each company for both weeks
+        all_results = []
         for company in companies:
-            if company.get('staticSchedule'):
-                # Load from static file
-                result = load_static_schedules(company, current_week, current_year)
-            else:
-                # Fetch from Firebase
-                result = fetch_company_schedules(company, current_week, current_year)
+            for week, year in [(current_week, current_year), (next_week, next_week_year)]:
+                if company.get('staticSchedule'):
+                    # Load from static file
+                    result = load_static_schedules(company, week, year)
+                else:
+                    # Fetch from Firebase
+                    result = fetch_company_schedules(company, week, year)
 
-            results.append(result)
+                all_results.append(result)
 
-        # Generate HTML page
-        generate_multi_company_html(results, current_week, current_year)
+        # Create unified horaires.json
+        unified_schedules = create_unified_horaires_json(all_results)
+
+        # Generate HTML page with unified schedules
+        generate_multi_company_html(all_results, current_week, current_year)
 
         print("\n✅ Processus terminé avec succès!")
         return 0
 
     except Exception as e:
         print(f"❌ Erreur générale: {e}")
+        import traceback
+        traceback.print_exc()
         generate_error_html(str(e))
         return 1
 
