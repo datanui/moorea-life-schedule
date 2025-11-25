@@ -74,6 +74,35 @@ def seconds_to_time(seconds: int) -> str:
     return f"{hours:02d}:{minutes:02d}"
 
 
+def extract_vessel_name(vessel_field: str) -> str:
+    """
+    Extract clean vessel name from Firebase vessel field
+
+    Examples:
+        "Aremiti 5-26v" -> "Aremiti 5"
+        "Aremiti 6-12a" -> "Aremiti 6"
+        "Terevau" -> "Terevau"
+
+    Args:
+        vessel_field: Raw vessel string from Firebase
+
+    Returns:
+        Clean vessel name
+    """
+    import re
+
+    if not vessel_field:
+        return ""
+
+    # Try to extract "Aremiti N" pattern (where N is a number)
+    match = re.match(r'(Aremiti \d+)', vessel_field, re.IGNORECASE)
+    if match:
+        return match.group(1)
+
+    # For other vessels, return as-is
+    return vessel_field
+
+
 def load_static_schedules(company: Dict, week: int, year: int) -> Dict:
     """
     Load static schedules from a JSON file
@@ -224,7 +253,7 @@ def fetch_company_schedules(company: Dict, week: int, year: int) -> Dict:
             print(f"✅ Données récupérées pour {company['name']}")
 
             # Determine vessel_name (use company name if not specified)
-            vessel_name = company.get('vessel_name', company['name'])
+            default_vessel_name = company.get('vessel_name', company['name'])
 
             # Add vessel_name to each schedule if not present
             for destination in ['MOZ', 'PPT']:
@@ -233,8 +262,13 @@ def fetch_company_schedules(company: Dict, week: int, year: int) -> Dict:
                         if day_data and isinstance(day_data, dict):
                             for schedule_id, schedule in day_data.items():
                                 if schedule and isinstance(schedule, dict):
-                                    if 'vessel_name' not in schedule:
-                                        schedule['vessel_name'] = vessel_name
+                                    # Extract vessel name from the 'vessel' field if present
+                                    if 'vessel' in schedule and schedule['vessel']:
+                                        extracted_name = extract_vessel_name(schedule['vessel'])
+                                        schedule['vessel_name'] = extracted_name
+                                    elif 'vessel_name' not in schedule:
+                                        schedule['vessel_name'] = default_vessel_name
+
                                     if 'vessel' not in schedule:
                                         schedule['vessel'] = company['name']
 
@@ -808,8 +842,12 @@ def create_unified_horaires_json(all_results: List[Dict]):
                     # Calculate actual date
                     actual_date = monday_date + timedelta(days=day)
 
-                    # Get vessel name
-                    vessel_name = schedule.get('vessel_name', company.get('vessel_name', company['name']))
+                    # Get vessel name - prioritize vessel_name field, then extract from vessel field
+                    vessel_name = schedule.get('vessel_name')
+                    if not vessel_name and 'vessel' in schedule:
+                        vessel_name = extract_vessel_name(schedule['vessel'])
+                    if not vessel_name:
+                        vessel_name = company.get('vessel_name', company['name'])
 
                     # Create schedule entry
                     unified_schedules.append({
